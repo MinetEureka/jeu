@@ -1,20 +1,12 @@
 <!DOCTYPE html>
-
-<!--
-バージョン情報
-10-05：パスワード生成処理を複雑化
-Formsに提出されたパスワードからExcelの解読ファイルでスコアを復元することができる。
-02-16：「今日の動詞」（予習用）、「リザルト」を追加。予習と復習ができる。音声も再生可能。
--->
-
+<!-- バージョン: GitHub用 分割JS対応（UI調整版） -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>動詞学習ゲーム（const responses 版）</title>
+  <title>動詞学習ゲーム（分割JS版・UI調整）</title>
   <style>
     body { font-family: sans-serif; text-align: center; margin: 0; }
-    /* 本編はスマホ縦画面に合わせて 2列×3行 */
     .image-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 20px; }
     .image-button { position: relative; border: 2px solid transparent; cursor: pointer; }
     .image-button.selected { border: 2px solid red; }
@@ -24,20 +16,22 @@ Formsに提出されたパスワードからExcelの解読ファイルでスコ�
     #counter { font-size: 48px; }
     #input-section { margin-top: 20px; }
     img { pointer-events: none; user-select: none; }
-
-    /* 今日の動詞（2列カード） */
     #today-section { margin: 16px 20px; text-align: left; }
     #today-title { font-weight: 700; margin-bottom: 8px; }
-    #today-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-    .today-row { display: grid; grid-template-columns: 120px 1fr; gap: 12px; align-items: center; background: #fafafa; border: 1px solid #eee; border-radius: 8px; padding: 8px; }
+    /* ▼ 今日の動詞：スマホ1列／タブレット以上2列 */
+    #today-list { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    @media (min-width: 768px){ #today-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .today-row { display: grid; grid-template-columns: 110px 1fr; gap: 12px; align-items: center; background: #fafafa; border: 1px solid #eee; border-radius: 8px; padding: 8px; }
     .today-left { display: flex; align-items: center; justify-content: center; }
-    .today-left img { width: 100%; height: auto; max-height: 100px; object-fit: contain; }
-    .pair-line { display: inline-flex; align-items: center; column-gap: 8px; }
+    .today-left img { width: 100%; height: auto; max-height: 80px; object-fit: contain; }
+    .pair-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .tag { font-size: 0.9em; color: #555; }
-    .play { padding: 4px 8px; }
-
+    .play { padding: 6px 10px; font-size: 14px; }
     table { border-collapse: collapse; width: 100%; font-size: 0.9em; }
     th, td { border-bottom: 1px solid #eee; padding: 6px 4px; text-align: center; }
+    /* 入力・ボタンは16px以上（モバイルの自動ズーム抑止） */
+    input, textarea, select, button { font-size: 16px; }
+    #text-input { width: 80vw; max-width: 420px; }
   </style>
   <script>
     // 右クリック禁止
@@ -47,7 +41,6 @@ Formsに提出されたパスワードからExcelの解読ファイルでスコ�
 <body>
   <h1>動詞学習ゲーム</h1>
 
-  <!-- 最初の案内（学籍番号入力＋例示画像） -->
   <div id="intro-image" style="margin-top: 20px;">
     <img src="verbe-00.png" alt="例示画像" style="width:60%; max-width:300px;">
     <p style="font-size: 1.2em; margin-top: 10px;">学籍番号を入力してください</p>
@@ -64,22 +57,16 @@ Formsに提出されたパスワードからExcelの解読ファイルでスコ�
     <div id="today-list"></div>
   </div>
 
-  <!-- ゲーム中のターン・スコア表示 -->
   <div id="game-info" style="display:none;">
     <p id="turn-info"></p>
     <p id="score-info"></p>
   </div>
 
-  <!-- 画像選択肢のグリッド（2列×3行） -->
   <div class="image-grid" id="image-grid"></div>
 
-  <!-- 音声再生ボタン -->
   <button id="listen-button" style="display:none;" onclick="playAudioSegment(currentAudioId)">もう一度聞く</button>
-
-  <!-- 画像選択確定ボタン -->
   <button id="confirm-button" style="display:none;" onclick="confirmSelection()">OK</button>
 
-  <!-- je の活用入力オーバーレイ -->
   <div id="overlay">
     <div id="counter">5</div>
     <div>je の活用を書いてください</div>
@@ -89,61 +76,50 @@ Formsに提出されたパスワードからExcelの解読ファイルでスコ�
     </div>
   </div>
 
-  <!-- 結果表示 -->
   <div id="result" style="display:none;"></div>
 
-  <!-- 音声（本編・復習） -->
   <audio id="audio-player" src="audio.mp3"></audio>
   <audio id="audio-re-player" src="audioRe.mp3"></audio>
 
-  <script>
-    // ===== 定数・共有データ =====
-    const maxVerbe = 10; // ★ 01〜20 まで対応
-    const scoreKey = 23;
-    const formsURL = "https://forms.office.com/";
+  <!-- 分割JS -->
+  <script src="./js/a1.js"></script>
+  <script src="./js/b2.js"></script>
+  <script src="./js/r4.js"></script>
+  <script src="./js/c3.js"></script>
 
-    // 5秒刻み（1語あたり10秒：a=先頭5秒, b=+5秒）
-    const segmentMap = {
-      "01a":0,"01b":5,  "02a":10,"02b":15,  "03a":20,"03b":25,
-      "04a":30,"04b":35, "05a":40,"05b":45,  "06a":50,"06b":55,
-      "07a":60,"07b":65, "08a":70,"08b":75,  "09a":80,"09b":85,
+  <script>
+    // ===== ズーム制御（任意） =====
+    let _origViewportContent = null;
+    function lockZoom(){
+      const m = document.querySelector('meta[name="viewport"]');
+      if(!m) return; const c = m.getAttribute('content') || 'width=device-width, initial-scale=1.0';
+      if(_origViewportContent==null) _origViewportContent = c;
+      if(!/maximum-scale/.test(c)) m.setAttribute('content', c + ', maximum-scale=1, user-scalable=no');
+    }
+    function unlockZoom(){
+      const m = document.querySelector('meta[name="viewport"]');
+      if(m && _origViewportContent!=null) m.setAttribute('content', _origViewportContent);
+    }
+
+    // ===== 定数・共有データ（鍵やマップは外部JSに委譲） =====
+    const maxVerbe = 10;
+    const formsURL = "https://forms.office.com/";
+    const segmentMap = {"01a":0,"01b":5, "02a":10,"02b":15, "03a":20,"03b":25,
+      "04a":30,"04b":35, "05a":40,"05b":45, "06a":50,"06b":55,
+      "07a":60,"07b":65, "08a":70,"08b":75, "09a":80,"09b":85,
       "10a":90,"10b":95, "11a":100,"11b":105,"12a":110,"12b":115,
       "13a":120,"13b":125,"14a":130,"14b":135,"15a":140,"15b":145,
       "16a":150,"16b":155,"17a":160,"17b":165,"18a":170,"18b":175,
-      "19a":180,"19b":185,"20a":190,"20b":195
-    };
+      "19a":180,"19b":185,"20a":190,"20b":195};
 
-    // ★ ここを編集するだけで正解（テキスト）を設定できます
-    const responses = {
-      "01a":"j'ai",                "01b":"je n'ai pas",
-      "02a":"je travaille",       "02b":"je ne travaille pas",
-      "03a":"j'habite",           "03b":"je n'habite pas",
-      "04a":"je mange",           "04b":"je ne mange pas",
-      "05a":"je viens",           "05b":"je ne viens pas",
-      "06a":"je vais",            "06b":"je ne vais pas",
-      "07a":"je lis",             "07b":"je ne lis pas",
-      "08a":"je bois",            "08b":"je ne bois pas",
-      "09a":"je prends",          "09b":"je ne prends pas",
-      "10a":"je dis",             "10b":"je ne dis pas",
-      "11a":"je peux",            "11b":"je ne peux pas",
-      "12a":"je veux",            "12b":"je ne veux pas",
-      "13a":"je dois",            "13b":"je ne dois pas",
-      "14a":"je pense",           "14b":"je ne pense pas",
-      "15a":"je comprends",       "15b":"je ne comprends pas",
-      "16a":"je parle",           "16b":"je ne parle pas",
-      "17a":"je dors",            "17b":"je ne dors pas",
-      "18a":"je sors",            "18b":"je ne sors pas",
-      "19a":"je commence",        "19b":"je ne commence pas",
-      "20a":"je finis",           "20b":"je ne finis pas"
-    };
+    // responses は外部JS (js/r4.js) から提供
+    const responses = window.responses || {};
 
-    // ===== 状態変数 =====
     let turn = 0, score = 0;
     let selectedImage = "", correctAnswer = "", correctImage = "";
     let countdown, studentId = "", currentAudioId = "";
     let history = [];
 
-    // ===== 今日の動詞（練習用リスト）描画 =====
     function renderTodayVerbs() {
       const container = document.getElementById("today-list");
       if (!container) return;
@@ -151,19 +127,15 @@ Formsに提出されたパスワードからExcelの解読ファイルでスコ�
       for (let n = 1; n <= maxVerbe; n++) {
         const idx = String(n).padStart(2, "0");
         const aId = `${idx}a`, bId = `${idx}b`;
-
         const row = document.createElement("div");
         row.className = "today-row";
-
         const left = document.createElement("div");
         left.className = "today-left";
         const img = document.createElement("img");
         img.src = `verbe-${idx}.png`;
         img.alt = `verbe-${idx}`;
         left.appendChild(img);
-
         const right = document.createElement("div");
-        // ラベルとボタンを近接配置
         const mk = (label, handler, id) => {
           const line = document.createElement("div");
           line.className = "pair-line";
@@ -177,10 +149,9 @@ Formsに提出されたパスワードからExcelの解読ファイルでスコ�
           return line;
         };
         right.appendChild(mk(`${idx}a：質問`, playAudioSegment, aId));
-        right.appendChild(mk(`答え`,            playReviewSegment, aId));
+        right.appendChild(mk(`答え`, playReviewSegment, aId));
         right.appendChild(mk(`${idx}b：質問`, playAudioSegment, bId));
-        right.appendChild(mk(`答え`,            playReviewSegment, bId));
-
+        right.appendChild(mk(`答え`, playReviewSegment, bId));
         row.appendChild(left); row.appendChild(right);
         container.appendChild(row);
       }
@@ -188,13 +159,11 @@ Formsに提出されたパスワードからExcelの解読ファイルでスコ�
 
     window.addEventListener("DOMContentLoaded", () => {
       renderTodayVerbs();
-      // 初回読込の安定化
       const a = document.getElementById('audio-player');
       const ar = document.getElementById('audio-re-player');
       if (a) a.load(); if (ar) ar.load();
     });
 
-    // ===== 再生（本編：audio.mp3 5秒） =====
     function playAudioSegment(segmentId) {
       const audio = document.getElementById("audio-player");
       const startTime = segmentMap[segmentId];
@@ -204,7 +173,6 @@ Formsに提出されたパスワードからExcelの解読ファイルでスコ�
       audio.onplaying = () => setTimeout(() => audio.pause(), 5000);
     }
 
-    // ===== 再生（復習：audioRe.mp3 5秒） =====
     function playReviewSegment(segmentId) {
       const audio = document.getElementById("audio-re-player");
       if (!audio) return; const startTime = segmentMap[segmentId]; if (startTime===undefined) return;
@@ -213,7 +181,6 @@ Formsに提出されたパスワードからExcelの解読ファイルでスコ�
       audio.addEventListener("playing", () => setTimeout(() => audio.pause(), 5000), { once:true });
     }
 
-    // 相互排他（同時再生防止）
     document.getElementById('audio-player').addEventListener('play', ()=>{
       const ar = document.getElementById('audio-re-player'); if (ar && !ar.paused){ ar.pause(); ar.currentTime=0; }
     });
@@ -221,41 +188,34 @@ Formsに提出されたパスワードからExcelの解読ファイルでスコ�
       const a = document.getElementById('audio-player'); if (a && !a.paused){ a.pause(); a.currentTime=0; }
     });
 
-    // ===== ゲーム開始〜終了 =====
     function startGame() {
       studentId = document.getElementById("student-id").value;
       if (studentId.length < 4) { alert("学籍番号の下4桁を入力してください。"); return; }
       document.getElementById("start-section").style.display = "none";
       document.getElementById("intro-image").style.display = "none";
-      document.getElementById("today-section").style.display = "none"; // ゲーム中は隠す
+      document.getElementById("today-section").style.display = "none";
       document.getElementById("game-info").style.display = "block";
       nextTurn();
       setTimeout(()=>playAudioSegment(currentAudioId),0);
     }
 
-    function nextTurn() {
+    function nextTurn(){
       turn++;
       document.getElementById("turn-info").innerText = `${turn}ターン目`;
       document.getElementById("score-info").innerText = `スコア：${score}/10`;
       document.getElementById("image-grid").innerHTML = "";
       document.getElementById("listen-button").style.display = "none";
       document.getElementById("confirm-button").style.display = "none";
-
-      // 6つの異なる画像番号をランダムに選ぶ
       let indices = [];
       while (indices.length < 6) {
         let num = Math.floor(Math.random()*maxVerbe)+1;
         let str = num.toString().padStart(2,'0');
         if (!indices.includes(str)) indices.push(str);
       }
-
-      // 正解画像・音声ID
       correctImage = indices[Math.floor(Math.random()*6)];
       let suffix = Math.random()<0.5 ? 'a':'b';
       currentAudioId = `${correctImage}${suffix}`;
       correctAnswer = responses[currentAudioId] || "";
-
-      // 画像ボタン生成
       indices.forEach(idx => {
         let img = document.createElement('img');
         img.src = `verbe-${idx}.png`; img.style.width = '100%';
@@ -266,7 +226,6 @@ Formsに提出されたパスワードからExcelの解読ファイルでスコ�
         div.appendChild(img); div.appendChild(check);
         document.getElementById('image-grid').appendChild(div);
       });
-
       setTimeout(()=>playAudioSegment(currentAudioId), 1000);
       document.getElementById('listen-button').style.display = 'inline';
     }
@@ -284,6 +243,7 @@ Formsに提出されたパスワードからExcelの解読ファイルでスコ�
     function confirmSelection(){
       document.querySelectorAll('.image-button').forEach(div=>div.onclick=null);
       document.getElementById('overlay').style.display='flex';
+      lockZoom();
       document.getElementById('text-input').value='';
       document.getElementById('text-input').focus();
       let counter=5; document.getElementById('counter').innerText=counter;
@@ -295,28 +255,18 @@ Formsに提出されたパスワードからExcelの解読ファイルでスコ�
       let input = document.getElementById('text-input').value.trim().toLowerCase();
       input = input.replace(/’/g, "'");
       document.getElementById('overlay').style.display='none';
-
-      history.push({
-        turn, image: correctImage, chosenImage: selectedImage,
-        audioId: currentAudioId, correct: correctAnswer, user: input,
-        isCorrect: (selectedImage===correctImage && input===correctAnswer)
-      });
-
+      unlockZoom();
+      history.push({ turn, image: correctImage, chosenImage: selectedImage, audioId: currentAudioId, correct: correctAnswer, user: input, isCorrect: (selectedImage===correctImage && input===correctAnswer) });
       if (selectedImage===correctImage && input===correctAnswer) score++;
       if (turn<10) nextTurn(); else endGame();
     }
 
-    const hexReplaceMap = { '0': '{','1': '}','2': '*','3': '@','4': '!','5': 'L','6': 'q','7': 'X','8': 'Y','9': 'k','A': 'K','B': 'I','C': 'i','D': 'j','E': '?','F': 'J' };
-
     function endGame(){
-      const key = parseInt(studentId.slice(-4),10);
-      const passwordValue = ((key+scoreKey)**2) + ((score+scoreKey)**2);
-      const hexPassword = passwordValue.toString(16).toUpperCase();
-      const finalPassword = hexPassword.split('').map(c=>hexReplaceMap[c]?hexReplaceMap[c]:c).join('');
+      const sidLast4 = parseInt(studentId.slice(-4),10);
+      const finalPassword = window.computePassword(sidLast4, score);
 
       document.getElementById('result').style.display='block';
       document.getElementById('image-grid').style.display='none';
-
       document.getElementById('result').innerHTML = `
         <p>パスワード：${finalPassword}</p>
         <button onclick="copyPassword('${finalPassword}')">コピー</button>
@@ -327,16 +277,9 @@ Formsに提出されたパスワードからExcelの解読ファイルでスコ�
       let historyHtml = `
         <table>
           <tr>
-            <th>問題</th>
-            <th>画像（正解）</th>
-            <th>あなたが選んだ画像</th>
-            <th>質問再生</th>
-            <th>正解再生</th>
-            <th>あなたの答え</th>
-            <th>正解</th>
-            <th>判定</th>
-          </tr>
-      `;
+            <th>問題</th><th>画像（正解）</th><th>あなたが選んだ画像</th>
+            <th>質問再生</th><th>正解再生</th><th>あなたの答え</th><th>正解</th><th>判定</th>
+          </tr>`;
       history.forEach(h=>{
         historyHtml += `
           <tr>
@@ -352,11 +295,16 @@ Formsに提出されたパスワードからExcelの解読ファイルでスコ�
       });
       historyHtml += `</table>`;
       document.getElementById('result').innerHTML += historyHtml;
-
       copyPassword(finalPassword);
     }
 
     function copyPassword(pw){ navigator.clipboard.writeText(pw); alert('パスワードをコピーしました。'); }
+
+    window.startGame = startGame;
+    window.playAudioSegment = playAudioSegment;
+    window.playReviewSegment = playReviewSegment;
+    window.confirmSelection = confirmSelection;
+    window.submitAnswer = submitAnswer;
   </script>
 </body>
 </html>
