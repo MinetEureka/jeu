@@ -278,7 +278,7 @@
       lockZoom();
       document.getElementById('text-input').value='';
       document.getElementById('text-input').focus();
-      let counter=5; document.getElementById('counter').innerText=counter;
+      let counter=10; document.getElementById('counter').innerText=counter;
       countdown=setInterval(()=>{ counter--; document.getElementById('counter').innerText=counter; if(counter<=0){ clearInterval(countdown); submitAnswer(); } },1000);
     }
 
