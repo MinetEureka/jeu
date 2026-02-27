@@ -1,0 +1,328 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>動詞学習ゲーム</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; margin: 0; }
+    .image-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 20px; }
+    .image-button { position: relative; border: 2px solid transparent; cursor: pointer; }
+    .image-button.selected { border: 2px solid #e11; }
+    .checkmark { position: absolute; top: 5px; right: 5px; font-size: 24px; color: #e11; display: none; }
+    .image-button.selected .checkmark { display: block; }
+    img { pointer-events: none; user-select: none; }
+
+    /* Today（練習パート） */
+    #today-section { margin: 16px 20px; text-align: left; }
+    #today-title { font-weight: 700; margin-bottom: 8px; }
+    #today-list { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    @media (min-width: 768px){ #today-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .today-row { display: grid; grid-template-columns: 110px 1fr; gap: 12px; align-items: center; background: #fafafa; border: 1px solid #eee; border-radius: 8px; padding: 8px; }
+    .today-left { display: flex; align-items: center; justify-content: center; }
+    .today-left img { width: 100%; height: auto; max-height: 80px; object-fit: contain; }
+    .pair-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .tag { font-size: 0.9em; color: #555; }
+    .play { padding: 6px 10px; font-size: 14px; }
+
+    table { border-collapse: collapse; width: 100%; font-size: 0.9em; }
+    th, td { border-bottom: 1px solid #eee; padding: 6px 4px; text-align: center; }
+    input, textarea, select, button { font-size: 16px; }
+  </style>
+  <script>
+    document.addEventListener('contextmenu', e => e.preventDefault());
+  </script>
+  <!-- responses を外部ファイルから読み込み（パスは配置先に合わせて変更してください） -->
+  <script src="js/indexjs/r4.js" defer></script>
+</head>
+<body>
+  <h1>動詞学習ゲーム</h1>
+  <div id="intro-image" style="margin-top: 20px;">
+    <img src="image/image-00.png" alt="例示画像" style="width:60%; max-width:300px;">
+    <p style="font-size: 1.2em; margin-top: 10px;">学籍番号を入力してください</p>
+  </div>
+  <div id="start-section">
+    学籍番号: <input type="text" id="student-id" maxlength="8" />
+    <button onclick="startGame()">スタート</button>
+  </div>
+
+  <div id="today-section">
+    <div id="today-title">練習しよう</div>
+    <div id="today-list"></div>
+  </div>
+
+  <div id="game-info" style="display:none;">
+    <p id="turn-info"></p>
+    <p id="score-info"></p>
+  </div>
+
+  <div class="image-grid" id="image-grid"></div>
+  <button id="listen-button" style="display:none;" onclick="playAudioSegment(currentAudioId)">もう一度聞く</button>
+
+  <div id="result" style="display:none;"></div>
+
+  <!-- 単一の audio を使い回し。初回のみウォームアップして以降はキャッシュ再利用 -->
+  <audio id="audio-player" src="audio.mp3" preload="auto" crossorigin="anonymous"></audio>
+
+  <script>
+    // ====== 設定・データ ======
+    const maxImage = 26;
+
+    // segmentMap: 01, 02, 03 ... の番号順（手動調整しやすいリテラル）
+    const segmentMap = {
+      "01": 0,
+      "02": 10,
+      "03": 20,
+      "04": 30,
+      "05": 40,
+      "06": 50,
+      "07": 60,
+      "08": 70,
+      "09": 80,
+      "10": 90,
+      "11": 100,
+      "12": 110,
+      "13": 120,
+      "14": 130,
+      "15": 140,
+      "16": 150,
+      "17": 160,
+      "18": 170,
+      "19": 180,
+      "20": 190,
+      "21": 200,
+      "22": 210,
+      "23": 220,
+      "24": 230,
+      "25": 240,
+      "26": 250
+    };
+
+    const dummySet = new Set(Object.values(window.responses || {}).map(v => String(v).padStart(2,'0')));
+    let turn=0, score=0;
+    let selectedImage="", correctImage="";
+    let studentId="", currentAudioId="";
+    let history=[]; let turnLocked=false;
+
+    // ===== 安定再生ユーティリティ（初回だけウォームアップ） =====
+    let playTicket = 0; // 競合防止用トークン
+    let audioWarmed = false; // 初回ウォームアップ済みフラグ
+
+    function waitCanPlayThrough(audio){
+      return new Promise(resolve=>{
+        if (audio.readyState >= 4) return resolve();
+        const onReady = ()=>{ cleanup(); resolve(); };
+        const onErr = ()=>{ cleanup(); resolve(); };
+        const cleanup = ()=>{
+          audio.removeEventListener('canplaythrough', onReady);
+          audio.removeEventListener('error', onErr);
+          audio.removeEventListener('stalled', onErr);
+          audio.removeEventListener('suspend', onReady);
+        };
+        audio.addEventListener('canplaythrough', onReady, { once:true });
+        audio.addEventListener('suspend', onReady, { once:true });
+        audio.addEventListener('stalled', onErr, { once:true });
+        audio.addEventListener('error', onErr, { once:true });
+        setTimeout(()=>{ cleanup(); resolve(); }, 5000);
+      });
+    }
+
+    async function warmUpAudio(){
+      if (audioWarmed) return;
+      const a = document.getElementById('audio-player');
+      if (!a) return;
+      try{
+        a.currentTime = 0;
+        a.load();
+        await waitCanPlayThrough(a);
+        // 1.5秒の余裕を持たせる（デコード/IOの安定化）
+        await new Promise(r=>setTimeout(r, 1500));
+        audioWarmed = true;
+      }catch(e){ /* no-op */ }
+    }
+
+    async function playSegmentById(playerId, segmentId){
+      const ticket = ++playTicket;
+      const audio = document.getElementById(playerId);
+      if (!audio) return;
+      const startTime = segmentMap[segmentId];
+      if (startTime===undefined) return;
+      try{
+        audio.pause();
+        // 初回のみウォームアップ（以後はキャッシュ再利用で load() しない）
+        if (!audioWarmed) { await warmUpAudio(); }
+        if (ticket !== playTicket) return;
+        audio.currentTime = startTime;
+        await new Promise(r=>requestAnimationFrame(r));
+        const p = audio.play();
+        if (p && typeof p.then === 'function') { await p.catch(()=>{}); }
+        if (ticket !== playTicket) return;
+        const stopAt = startTime + 5;
+        const onTimeUpdate = ()=>{
+          if (audio.currentTime >= stopAt - 0.02) {
+            audio.pause(); audio.removeEventListener('timeupdate', onTimeUpdate);
+          }
+        };
+        audio.addEventListener('timeupdate', onTimeUpdate);
+      } catch(e){ /* no-op */ }
+    }
+
+    function playAudioSegment(segmentId){ return playSegmentById('audio-player', segmentId); }
+
+    function renderTodayVerbs(){
+      const c = document.getElementById('today-list'); c.innerHTML='';
+      for (let n=1;n<=maxImage;n++){
+        const idx = String(n).padStart(2,'0');
+        const row = document.createElement('div'); row.className='today-row';
+        const left = document.createElement('div'); left.className='today-left';
+        const img = document.createElement('img'); img.src=`image/image-${idx}.png`; img.alt=`image/image-${idx}`; left.appendChild(img);
+        const right = document.createElement('div');
+        const line = document.createElement('div'); line.className='pair-line';
+        const span = document.createElement('span'); span.className='tag'; span.textContent = `${idx}：音声`;
+        const btn = document.createElement('button'); btn.className='play'; btn.textContent='▶'; btn.onclick=()=>playAudioSegment(idx);
+        line.appendChild(span); line.appendChild(btn); right.appendChild(line);
+        row.appendChild(left); row.appendChild(right); c.appendChild(row);
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', async ()=>{
+      renderTodayVerbs();
+      const a = document.getElementById('audio-player');
+      if (a) { a.load(); }
+      // スタート画面で音声をウォームアップ（初回のみ）。暗転やカウントダウンなし
+      await warmUpAudio();
+    });
+
+    function startGame(){
+      studentId = document.getElementById('student-id').value;
+      if (studentId.length < 4) { alert('学籍番号の下4桁を入力してください。'); return; }
+      document.getElementById('start-section').style.display='none';
+      document.getElementById('intro-image').style.display='none';
+      document.getElementById('today-section').style.display='none';
+      document.getElementById('game-info').style.display='block';
+      // ------- 最初の音声は「スタート」ボタンクリック（ユーザージェスチャ）で再生 -------
+      nextTurn(/* build only */);
+      playAudioSegment(currentAudioId); // ユーザー操作の同一イベントハンドラ内
+    }
+
+    function pickCorrectId(){
+      let id; do{ id = String(Math.floor(Math.random()*maxImage)+1).padStart(2,'0'); } while (dummySet.has(id));
+      return id;
+    }
+
+    function pickChoices(correct){
+      const conf = (window.responses||{})[correct];
+      const set = new Set(); set.add(correct); if (conf) set.add(String(conf).padStart(2,'0'));
+      while (set.size < 6){ const id = String(Math.floor(Math.random()*maxImage)+1).padStart(2,'0'); set.add(id); }
+      return Array.from(set);
+    }
+
+    function nextTurn(){
+      turn++; turnLocked=false; selectedImage="";
+      document.getElementById('turn-info').innerText = `${turn}ターン目`;
+      document.getElementById('score-info').innerText = `スコア：${score}/10`;
+      document.getElementById('image-grid').innerHTML='';
+      document.getElementById('listen-button').style.display='none';
+      correctImage = pickCorrectId();
+      currentAudioId = correctImage;
+      const indices = pickChoices(correctImage);
+      for (let i=indices.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [indices[i],indices[j]]=[indices[j],indices[i]]; }
+      indices.forEach(idx=>{
+        const img = document.createElement('img'); img.src=`image/image-${idx}.png`; img.style.width='100%';
+        const div = document.createElement('div'); div.className='image-button';
+        // 1回目タップ：選択、2回目タップ：確定（次の問題の音声再生トリガー）
+        div.onclick=()=>{
+          if (turnLocked) return;
+          if (selectedImage===idx){
+            confirmSelection(/* userGesture */ true);
+          } else {
+            selectImage(idx);
+          }
+        };
+        const check = document.createElement('div'); check.className='checkmark'; check.innerText='✓';
+        div.appendChild(img); div.appendChild(check); document.getElementById('image-grid').appendChild(div);
+      });
+      document.getElementById('listen-button').style.display='inline';
+    }
+
+    function selectImage(idx){
+      selectedImage = idx;
+      document.querySelectorAll('.image-button').forEach(div=>div.classList.remove('selected'));
+      const btns = document.querySelectorAll('.image-button');
+      const imgs = document.querySelectorAll('.image-button img');
+      const i = Array.from(imgs).findIndex(img=>img.src.includes(`image/image-${idx}.png`));
+      if (i>=0) btns[i].classList.add('selected');
+    }
+
+    function confirmSelection(triggerNextByGesture=false){
+      if (turnLocked) return; if (!selectedImage) return; turnLocked=true;
+      document.querySelectorAll('.image-button').forEach(div=>div.onclick=null);
+      const isCorrect = (selectedImage === correctImage);
+      history.push({
+        turn,
+        image: correctImage,
+        chosenImage: selectedImage,
+        audioId: correctImage,
+        userAudioId: selectedImage,
+        isCorrect
+      });
+      if (isCorrect) score++;
+      document.getElementById('score-info').innerText = `スコア：${score}/10`;
+      if (turn < 10) {
+        // ------- 次の問題のセットアップ＆音声再生を "同一ユーザージェスチャ" の中で実行 -------
+        nextTurn();
+        if (triggerNextByGesture) {
+          playAudioSegment(currentAudioId);
+        }
+      } else {
+        endGame();
+      }
+    }
+
+    function endGame(){
+      const gi = document.getElementById('game-info'); if (gi) gi.style.display = 'none';
+      const lb = document.getElementById('listen-button'); if (lb) lb.style.display = 'none';
+      const grid = document.getElementById('image-grid'); if (grid) { grid.innerHTML=''; grid.style.display='none'; }
+      const a=document.getElementById('audio-player'); if (a){ try{ a.pause(); a.currentTime=0; }catch(e){} }
+      const finalScore = history.reduce((s,h)=> s + (h.isCorrect ? 1 : 0), 0);
+      score = finalScore;
+      const sidLast4 = parseInt(String(studentId).slice(-4),10);
+      const defaultComputePassword = (sid, sc) => (((sid+37)**2 + (sc+11)**2).toString(16).toUpperCase());
+      const computePasswordFn = (window.computePassword || defaultComputePassword);
+      const finalPassword = computePasswordFn(sidLast4, score);
+      const resultDiv = document.getElementById('result');
+      resultDiv.style.display='block';
+      document.getElementById('image-grid').style.display='none';
+      resultDiv.innerHTML = `
+        <p>スコア：${score}/10</p>
+        <p>パスワード：${finalPassword}</p>
+        <button onclick="copyPassword('${finalPassword}')">コピー</button>
+        <p>コピーしたパスワードを Forms から提出してください</p>
+      `;
+      let historyHtml = `<table><tr><th>問題</th><th>正解</th><th>正解音声</th><th>あなたの答え</th><th>あなたの答えの音声</th><th>判定</th></tr>`;
+      history.forEach(h=>{
+        historyHtml += `<tr>
+          <td>${h.turn}</td>
+          <td><img src="image/image-${h.image}.png" alt="correct-${h.image}" style="width:72px;height:auto;"></td>
+          <td><button onclick="playAudioSegment('${h.audioId}')">▶</button></td>
+          <td><img src="image/image-${h.chosenImage}.png" alt="chosen-${h.chosenImage}" style="width:72px;height:auto;"></td>
+          <td><button onclick="playAudioSegment('${h.userAudioId}')">▶</button></td>
+          <td>${h.isCorrect ? '〇' : '×'}</td>
+        </tr>`;
+      });
+      historyHtml += `</table>`; resultDiv.innerHTML += historyHtml;
+      copyPassword(finalPassword); resultDiv.scrollIntoView({behavior:'smooth'});
+    }
+
+    function copyPassword(pw){
+      navigator.clipboard.writeText(pw).then(()=>{ alert('パスワードをコピーしました。'); }).catch(()=>{});
+    }
+
+    window.startGame = startGame;
+    window.playAudioSegment = playAudioSegment;
+    window.confirmSelection = confirmSelection;
+    window.submitAnswer = function(){};
+  </script>
+</body>
+</html>
