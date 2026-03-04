@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>動詞学習ゲーム</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; margin: 0; }
+    .image-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 20px; }
+    .image-button { position: relative; border: 2px solid transparent; cursor: pointer; }
+    .image-button.selected { border: 2px solid red; }
+    .checkmark { position: absolute; top: 5px; right: 5px; font-size: 24px; color: red; display: none; }
+    .image-button.selected .checkmark { display: block; }
+    /* 入力用オーバーレイ */
+    #overlay { position: fixed; inset: 0; width: 100%; height: 100%; background: rgba(200,200,200,0.8); display: none; justify-content: center; align-items: center; flex-direction: column; z-index: 20; }
+    #counter { font-size: 48px; }
+    #input-section { margin-top: 20px; }
+    #timeout-section { margin-top: 20px; display: none; }
+    img { pointer-events: none; user-select: none; }
+    #today-section { margin: 16px 20px; text-align: left; }
+    #today-title { font-weight: 700; margin-bottom: 8px; }
+    #today-list { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    @media (min-width: 768px){ #today-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .today-row { display: grid; grid-template-columns: 110px 1fr; gap: 12px; align-items: center; background: #fafafa; border: 1px solid #eee; border-radius: 8px; padding: 8px; }
+    .today-left { display: flex; align-items: center; justify-content: center; }
+    .today-left img { width: 100%; height: auto; max-height: 80px; object-fit: contain; }
+    .pair-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .tag { font-size: 0.9em; color: #555; }
+    .play { padding: 6px 10px; font-size: 14px; }
+    table { border-collapse: collapse; width: 100%; font-size: 0.9em; }
+    th, td { border-bottom: 1px solid #eee; padding: 6px 4px; text-align: center; }
+    input, textarea, select, button { font-size: 16px; }
+    #text-input { width: 80vw; max-width: 420px; }
+    #toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: rgba(0,0,0,0.78); color: #fff; padding: 8px 12px; border-radius: 8px; font-size: 14px; display: none; z-index: 40; }
+  </style>
+  <script>
+    document.addEventListener('contextmenu', e => e.preventDefault());
+  </script>
+</head>
+<body>
+  <h1>動詞学習ゲーム</h1>
+  <div id="intro-image" style="margin-top: 20px;">
+    <img src="image/image-00.png" alt="例示画像" style="width:60%; max-width:300px;" />
+    <p style="font-size: 1.2em; margin-top: 10px;">学籍番号を入力してください</p>
+  </div>
+
+  <div id="start-section">
+    学籍番号: <input type="text" id="student-id" maxlength="8" />
+    <button id="start-btn" onclick="startGame()">スタート</button>
+  </div>
+
+  <div id="today-section">
+    <div id="today-title">今日の動詞</div>
+    <div id="today-list"></div>
+  </div>
+
+  <div id="game-info" style="display:none">
+    <p id="turn-info"></p>
+    <p id="score-info"></p>
+  </div>
+
+  <div class="image-grid" id="image-grid"></div>
+  <button id="listen-button" style="display:none" onclick="__replayCurrent()">もう一度聞く</button>
+  <button id="confirm-button" style="display:none" onclick="confirmSelection()">OK</button>
+
+  <div id="overlay">
+    <div id="counter">5</div>
+    <div>je の活用を書いてください</div>
+    <div id="input-section">
+      <input type="text" id="text-input" value="" onkeydown="if(event.key==='Enter'){ submitAnswer(); }"/>
+      <button onclick="submitAnswer()">OK</button>
+    </div>
+    <div id="timeout-section">
+      <p>入力時間が終了しました。OKを押して次へ進んでください。</p>
+      <button onclick="submitAnswer()">OK</button>
+    </div>
+  </div>
+
+  <div id="result" style="display:none"></div>
+  <div id="toast"></div>
+
+  <!-- フェールセーフ用（基本は使わない） -->
+  <audio id="audio-player" src="audio.mp3" preload="auto" playsinline></audio>
+  <audio id="audio-re-player" src="audioRe.mp3" preload="auto" playsinline></audio>
+
+  <!-- 外部JS（パスワード生成など）-->
+  <script src="./js/a1.js"></script>
+  <script src="./js/b2.js"></script>
+  <script src="./js/r4.js"></script>
+  <script src="./js/c3.js"></script>
+
+  <script>
+    // ===== 設定 =====
+    const BUFFER = Object.freeze({
+      DELAY_MS: 150,
+      SEEK_SETTLE_MS: 180,
+    });
+    const COUNTDOWN_LEAD_MS = 2000; // 先行2秒（非表示）
+    const COUNTDOWN_VISIBLE_SEC = 5; // 表示カウント（5→1）
+    const DURATION_SEC = 5; // 実再生は5秒（segmentMapは10秒刻み）
+
+    // ===== パスワード生成フォールバック =====
+    // 外部JSで window.computePassword が定義されていない場合のみ使用されます。
+    if (typeof window.computePassword !== 'function') {
+      // 佐々木さんの方針：（sid+key)^2 + (score+key)^2 を16進→固定マップで置換…の簡易版
+      // ※ここでは簡易マップに留め、実運用のマップは外部JSで定義してください。
+      (function(){
+        const HEX_MAP = { 'a':'@','b':'!','c':'*','d':'{','e':'}','f':'#' };
+        window.computePassword = function(sidLast4, score){
+          const key = 17; // 簡易キー（外部実装があればそちらが優先）
+          const val = Math.pow(sidLast4 + key, 2) + Math.pow(score + key, 2);
+          let hex = val.toString(16);
+          hex = hex.replace(/[abcdef]/g, ch => HEX_MAP[ch] || ch);
+          return hex;
+        };
+      })();
+    }
+
+    // ===== Web Audio: 先読み＆再生 =====
+    let audioCtx;
+    const buffers = { main: null, review: null };
+    const activeSources = { main: null, review: null };
+
+    async function ensureAudioContext(){
+      if(!audioCtx){ audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+      if(audioCtx.state === 'suspended'){
+        try{ await audioCtx.resume(); }catch(e){}
+      }
+    }
+
+    async function preloadAudios(){
+      await ensureAudioContext();
+      async function loadToBuffer(url){
+        const res = await fetch(url, { cache: 'force-cache' });
+        const arr = await res.arrayBuffer();
+        return await audioCtx.decodeAudioData(arr);
+      }
+      const [bufMain, bufRe] = await Promise.all([
+        loadToBuffer('audio.mp3'),
+        loadToBuffer('audioRe.mp3')
+      ]);
+      buffers.main = bufMain;
+      buffers.review = bufRe;
+    }
+
+    function stopWebAudio(which){
+      const src = activeSources[which];
+      if(src){ try{ src.stop(0); }catch(e){} try{ src.disconnect(); }catch(e){} activeSources[which]=null; }
+    }
+
+    function playSegmentWebAudio(which, segmentId, durationSec = DURATION_SEC){
+      if(!buffers[which]) return false;
+      const startTime = segmentMap[segmentId];
+      if(startTime === undefined) return false;
+      stopWebAudio(which);
+      const source = audioCtx.createBufferSource();
+      source.buffer = buffers[which];
+      source.connect(audioCtx.destination);
+      try{
+        source.start(0, startTime, Math.max(0.01, Math.min(durationSec, source.buffer.duration - startTime)));
+      }catch(e){ return false; }
+      activeSources[which] = source;
+      source.onended = () => { if(activeSources[which] === source) activeSources[which] = null; };
+      return true;
+    }
+
+    function playAfterDelay(playerId, segmentId, durationSec = DURATION_SEC, opts = {}, delayMs = BUFFER.DELAY_MS){
+      const which = (playerId === 'audio-re-player') ? 'review' : 'main';
+      setTimeout(async () => {
+        await ensureAudioContext();
+        if(!(buffers.main && buffers.review)){
+          try{ await preloadAudios(); }catch(e){}
+        }
+        if(!playSegmentWebAudio(which, segmentId, durationSec)){
+          const audio = document.getElementById(playerId);
+          const startTime = segmentMap[segmentId];
+          if(!audio || startTime === undefined) return;
+          try{ audio.pause(); audio.currentTime = startTime; audio.play(); }catch(e){}
+          setTimeout(()=>{ try{ audio.pause(); }catch(e){} }, durationSec*1000 + 200);
+        }
+      }, delayMs);
+    }
+
+    // ===== データ =====
+    const maxVerbe = 15;
+    const formsURL = "https://forms.office.com/";
+    const segmentMap = Object.freeze({
+  "01a": 0,    "01b": 10,  "02a": 20,   "02b": 30,  "03a": 40,   "03b": 50,  "04a": 60,   "04b": 70,  "05a": 80,   "05b": 90,  "06a": 100,  "06b": 110,  "07a": 120,  "07b": 130,  "08a": 140,  "08b": 150,  "09a": 160,  "09b": 170,  "10a": 180,  "10b": 190,
+  "11a": 200,  "11b": 210,  "12a": 220,  "12b": 230,  "13a": 240,  "13b": 250,  "14a": 260,  "14b": 270,  "15a": 280,  "15b": 290,  "16a": 300,  "16b": 310,  "17a": 320,  "17b": 330,  "18a": 340,  "18b": 350,  "19a": 360,  "19b": 370,  "20a": 380,  "20b": 390,
+  "21a": 400,  "21b": 410,  "22a": 420,  "22b": 430,  "23a": 440,  "23b": 450,  "24a": 460,  "24b": 470,  "25a": 480,  "25b": 490,  "26a": 500,  "26b": 510,  "27a": 520,  "27b": 530,  "28a": 540,  "28b": 550,  "29a": 560,  "29b": 570,  "30a": 580,  "30b": 590,
+  "31a": 600,  "31b": 610,  "32a": 620,  "32b": 630,  "33a": 640,  "33b": 650,  "34a": 660,  "34b": 670,  "35a": 680,  "35b": 690,  "36a": 700,  "36b": 710,  "37a": 720,  "37b": 730,  "38a": 740,  "38b": 750,  "39a": 760,  "39b": 770,  "40a": 780,  "40b": 790,
+  "41a": 800,  "41b": 810,  "42a": 820,  "42b": 830,  "43a": 840,  "43b": 850,  "44a": 860,  "44b": 870,  "45a": 880,  "45b": 890,  "46a": 900,  "46b": 910,  "47a": 920,  "47b": 930,  "48a": 940,  "48b": 950,  "49a": 960,  "49b": 970,  "50a": 980,  "50b": 990
+});
+
+    const responses = window.responses || {};
+
+    // ===== 状態 =====
+    let turn = 0, score = 0;
+    let selectedImage = "", correctAnswer = "", correctImage = "";
+    let countdown = null, studentId = "", currentAudioId = "";
+    let history = [];
+    let inGame = false;
+
+    function showToast(msg){
+      const t=document.getElementById('toast'); if(!t) return;
+      t.textContent=msg; t.style.display='block';
+      clearTimeout(t._hideTimer);
+      t._hideTimer=setTimeout(()=>{ t.style.display='none'; }, 1300);
+    }
+
+    function lockZoom(){
+      const m=document.querySelector('meta[name="viewport"]'); if(!m) return;
+      const c=m.getAttribute('content') || 'width=device-width, initial-scale=1.0';
+      if(!/maximum-scale/.test(c)) m.setAttribute('content', c + ', maximum-scale=1, user-scalable=no');
+    }
+    function unlockZoom(){
+      const m=document.querySelector('meta[name="viewport"]'); if(!m) return;
+      m.setAttribute('content','width=device-width, initial-scale=1.0');
+    }
+
+    function renderTodayVerbs(){
+      const container=document.getElementById('today-list'); if(!container) return;
+      container.innerHTML='';
+      for(let n=1;n<=maxVerbe;n++){
+        const idx=String(n).padStart(2,'0');
+        const aId=`${idx}a`, bId=`${idx}b`;
+        const row=document.createElement('div'); row.className='today-row';
+        const left=document.createElement('div'); left.className='today-left';
+        const img=document.createElement('img'); img.src=`image/image-${idx}.png`; img.alt=`image/image-${idx}`; left.appendChild(img);
+        const right=document.createElement('div');
+        const mk=(label,handler,id)=>{ const line=document.createElement('div'); line.className='pair-line'; const span=document.createElement('span'); span.className='tag'; span.textContent=label; const btn=document.createElement('button'); btn.className='play'; btn.textContent='▶'; btn.onclick=()=>handler(id); line.appendChild(span); line.appendChild(btn); return line; };
+        right.appendChild(mk(`oui質問`, playAudioSegment, aId));
+        right.appendChild(mk(`oui答え`, playReviewSegment, aId));
+        right.appendChild(mk(`non質問`, playAudioSegment, bId));
+        right.appendChild(mk(`non答え`, playReviewSegment, bId));
+        row.appendChild(left); row.appendChild(right); container.appendChild(row);
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', ()=>{
+      renderTodayVerbs();
+      preloadAudios().catch(()=>{});
+      const a=document.getElementById('audio-player'); const ar=document.getElementById('audio-re-player');
+      if(a) a.load(); if(ar) ar.load();
+    });
+
+    function startGame(){
+      inGame = true;
+      studentId = document.getElementById('student-id').value;
+      if(studentId.length < 4){ alert('学籍番号の下4桁を入力してください。'); inGame=false; return; }
+      document.getElementById('start-section').style.display='none';
+      document.getElementById('intro-image').style.display='none';
+      document.getElementById('today-section').style.display='none';
+      document.getElementById('game-info').style.display='block';
+
+      nextTurn();
+      if(currentAudioId){ playAudioSegment(currentAudioId); }
+    }
+
+    function nextTurn(){
+      try{ clearInterval(countdown); }catch(e){}
+      selectedImage=''; correctAnswer=''; correctImage=''; currentAudioId='';
+      turn++;
+      document.getElementById('turn-info').innerText = `${turn}ターン目`;
+      document.getElementById('score-info').innerText = `スコア：${score}/10`;
+      document.getElementById('image-grid').innerHTML='';
+      document.getElementById('listen-button').style.display='none';
+      document.getElementById('confirm-button').style.display='none';
+
+      let indices=[];
+      while(indices.length<6){
+        let num=Math.floor(Math.random()*maxVerbe)+1;
+        let str=num.toString().padStart(2,'0');
+        if(!indices.includes(str)) indices.push(str);
+      }
+      correctImage = indices[Math.floor(Math.random()*6)];
+      let suffix = Math.random()<0.5 ? 'a' : 'b';
+      currentAudioId = `${correctImage}${suffix}`;
+      correctAnswer = responses[currentAudioId] || '';
+
+      indices.forEach(idx=>{
+        let img=document.createElement('img'); img.src=`image/image-${idx}.png`; img.style.width='100%';
+        let div=document.createElement('div'); div.className='image-button';
+        div.onclick=()=>{ if(selectedImage===idx){ confirmSelection(); } else { selectImage(idx); } };
+        let check=document.createElement('div'); check.className='checkmark'; check.innerText='✓';
+        div.appendChild(img); div.appendChild(check);
+        document.getElementById('image-grid').appendChild(div);
+      });
+
+      document.getElementById('listen-button').style.display='inline';
+      document.getElementById('image-grid').style.display='grid';
+    }
+
+    function selectImage(idx){
+      selectedImage = idx;
+      document.querySelectorAll('.image-button').forEach(div=>div.classList.remove('selected'));
+      const btns=document.querySelectorAll('.image-button');
+      const imgs=document.querySelectorAll('.image-button img');
+      const i=Array.from(imgs).findIndex(img=>img.src.includes(`image/image-${idx}.png`));
+      if(i>=0) btns[i].classList.add('selected');
+      document.getElementById('confirm-button').style.display='inline';
+    }
+
+    function confirmSelection(){
+      document.querySelectorAll('.image-button').forEach(div=>div.onclick=null);
+      const overlay = document.getElementById('overlay');
+      overlay.style.display='flex';
+      lockZoom();
+      const counterEl = document.getElementById('counter');
+      const inputEl = document.getElementById('text-input');
+      const inputSec = document.getElementById('input-section');
+      const timeoutSec = document.getElementById('timeout-section');
+
+      inputEl.value='';
+      inputSec.style.display='block';
+      timeoutSec.style.display='none';
+      inputEl.focus();
+
+      counterEl.style.visibility = 'hidden';
+      setTimeout(()=>{
+        counterEl.style.visibility = 'visible';
+        let c = COUNTDOWN_VISIBLE_SEC; // 5 → 1
+        counterEl.innerText = c;
+        countdown = setInterval(()=>{
+          c--; counterEl.innerText = c;
+          if(c <= 0){
+            clearInterval(countdown);
+            inputSec.style.display='none';
+            timeoutSec.style.display='block';
+          }
+        }, 1000);
+      }, COUNTDOWN_LEAD_MS);
+    }
+
+    function submitAnswer(){
+      try{ clearInterval(countdown); }catch(e){}
+      const overlay = document.getElementById('overlay');
+      const inputEl = document.getElementById('text-input');
+      let input = (inputEl.value || '').trim().toLowerCase().replace(/’/g, "'");
+
+      overlay.style.display='none';
+      unlockZoom();
+
+      history.push({ turn, image: correctImage, chosenImage: selectedImage, audioId: currentAudioId, correct: correctAnswer, user: input, isCorrect: (selectedImage===correctImage && input===correctAnswer) });
+      if(selectedImage===correctImage && input===correctAnswer) score++;
+
+      if(history.length < 10){
+        nextTurn();
+        if(currentAudioId){ playAudioSegment(currentAudioId); }
+      } else {
+        endGame();
+      }
+    }
+
+    function recomputeScoreFromHistory(){
+      score = history.filter(h=>h.isCorrect).length;
+      const scoreInfo = document.getElementById('score-info');
+      if(scoreInfo) scoreInfo.innerText = `スコア：${score}/10`;
+    }
+
+    function endGame(){
+      inGame=false; recomputeScoreFromHistory();
+      document.getElementById('listen-button').style.display='none';
+      document.getElementById('confirm-button').style.display='none';
+      const grid=document.getElementById('image-grid'); if(grid){ grid.innerHTML=''; grid.style.display='none'; }
+      // ★ 重複表示を避けるため、ゲーム情報を非表示にする
+      const gi=document.getElementById('game-info'); if(gi){ gi.style.display='none'; }
+      document.getElementById('overlay').style.display='none'; unlockZoom();
+
+      const sidLast4 = parseInt(studentId.slice(-4), 10);
+      const finalPassword = (typeof window.computePassword === 'function') ? window.computePassword(sidLast4, score) : '';
+      const result=document.getElementById('result');
+      result.style.display='block';
+      result.innerHTML = `
+        <p>スコア：${score}/10</p>
+        <p>パスワード：${finalPassword || '(生成エラー)'}</p>
+        <button onclick="copyPassword('${finalPassword}')" ${finalPassword ? '' : 'disabled'}>コピー</button>
+        <p>コピーしたパスワードを Forms から提出してください</p>
+        <button onclick="window.open('${formsURL}', '_blank')">提出する</button>
+      `;
+
+      let historyHtml = `<table><tr><th>問題</th><th>動詞</th><th>選んだ動詞</th><th>質問</th><th>選んだ動詞の音声</th><th>正解音声</th><th>あなたの答え</th><th>正解</th><th>正誤</th></tr>`;
+      history.forEach(h=>{
+        const suffix = h.audioId.slice(-1);
+        const chosenQ = `${h.chosenImage}${suffix}`;
+        historyHtml += `<tr>
+          <td>${h.turn}</td>
+          <td><img src="image/image-${h.image}.png" alt="correct-${h.image}" style="width:72px;height:auto;"></td>
+          <td><img src="image/image-${h.chosenImage}.png" alt="chosen-${h.chosenImage}" style="width:72px;height:auto;"></td>
+          <td><button onclick="this.disabled=true; setTimeout(()=>this.disabled=false,5200); playAudioSegment('${h.audioId}', true);">▶</button></td>
+          <td><button onclick="this.disabled=true; setTimeout(()=>this.disabled=false,5200); playAudioSegment('${chosenQ}', true);">▶</button></td>
+          <td><button onclick="this.disabled=true; setTimeout(()=>this.disabled=false,5200); playReviewSegment('${h.audioId}', true);">▶</button></td>
+          <td>${h.user}</td>
+          <td>${h.correct}</td>
+          <td>${h.isCorrect ? '✅' : '❌'}</td>
+        </tr>`;
+      });
+      historyHtml += '</table>';
+      result.innerHTML += historyHtml;
+    }
+
+    function copyPassword(pw){ if(!pw) return; navigator.clipboard.writeText(pw); alert('パスワードをコピーしました。'); }
+
+    function playAudioSegment(segmentId, reset=false){
+      currentAudioId = segmentId;
+      playAfterDelay('audio-player', segmentId, DURATION_SEC, { reset }, BUFFER.DELAY_MS);
+    }
+    function __replayCurrent(){
+      if(!currentAudioId){ showToast('音声が未設定です'); return; }
+      playAfterDelay('audio-player', currentAudioId, DURATION_SEC, { reset:false }, BUFFER.DELAY_MS);
+    }
+    function playReviewSegment(segmentId, reset=false){
+      if(inGame){ showToast('ゲーム中は質問音声のみ再生できます'); return; }
+      playAfterDelay('audio-re-player', segmentId, DURATION_SEC, { reset }, BUFFER.DELAY_MS);
+    }
+
+    // 公開
+    window.startGame = startGame;
+    window.playAudioSegment = playAudioSegment;
+    window.playReviewSegment = playReviewSegment;
+    window.confirmSelection = confirmSelection;
+    window.submitAnswer = submitAnswer;
+    window.__replayCurrent = __replayCurrent;
+  </script>
+</body>
+</html>
