@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>教員用リンク集｜動的生成（contenu.js対応）</title>
+  <style>
+    :root { --bg:#f7f8fb; --panel:#fff; --ink:#1f2937; --muted:#6b7280; --brand:#002060; --brand-2:#2563eb; --border:#e5e7eb; --radius:12px; }
+    body{margin:0;padding:24px;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP",Meiryo,sans-serif;line-height:1.6}
+    header{max-width:1100px;margin:0 auto 20px}
+    h1{font-size:clamp(22px,2.6vw,30px);margin:0 0 8px}
+    .lead{color:var(--muted);margin:0 0 16px}
+    .section{max-width:1100px;margin:20px auto;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 2px 12px rgba(0,0,0,.04)}
+    .section>.title{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--border);color:var(--brand);font-weight:700;letter-spacing:.02em;background:linear-gradient(180deg,#fff,#fafafa)}
+    .grid{padding:14px;display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+    .card{display:grid;grid-template-columns:1fr auto;grid-template-rows:auto auto;gap:8px 10px;border:1px solid var(--border);border-radius:10px;padding:14px;background:#fff}
+    .card .label{grid-column:1 / -1;font-weight:600;color:var(--brand)}
+    .btn-row{display:contents}
+    button{appearance:none;border:1px solid var(--brand);background:#fff;color:var(--brand);padding:8px 12px;border-radius:8px;font-weight:600;cursor:pointer;transition:.15s ease;font-size:14px}
+    button:hover{background:var(--brand);color:#fff}
+    .btn-primary{border-color:var(--brand-2);color:#fff;background:var(--brand-2)}
+    .btn-primary:hover{filter:brightness(.95)}
+    .copy{border-color:var(--brand)}
+    .meta{grid-column:1/-1;color:var(--muted);font-size:12px}
+    .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#111827;color:#fff;padding:10px 14px;border-radius:999px;box-shadow:0 8px 30px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:.25s ease;font-size:14px;z-index:9999}
+    .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+    @media(max-width:560px){.grid{grid-template-columns:1fr}}
+    .breaker{grid-column:1 / -1; height:0; margin:0; padding:0; border:none}
+    .loading{max-width:1100px;margin:32px auto;color:var(--muted)}
+    .error{max-width:1100px;margin:32px auto;color:#b91c1c}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Eurêka！ 自習用カルタ｜教員用リンク</h1>
+    <p class="lead">青ボタンをクリックするとリンク先にジャンプします。<br>白いボタンをクリックするとクリップボードにURLをコピーします。</p>
+  </header>
+
+  <div id="root"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="contenu.js"></script>
+  <script>
+    const $root = document.getElementById('root');
+    const $toast = document.getElementById('toast');
+    function showToast(msg){$toast.textContent=msg;$toast.classList.add('show');clearTimeout(window.__t);window.__t=setTimeout(()=>{$toast.classList.remove('show')},1600)}
+    async function copyToClipboard(text){try{await navigator.clipboard.writeText(text);showToast('リンクをコピーしました')}catch(e){const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();const ok=document.execCommand('copy');document.body.removeChild(ta);showToast(ok?'リンクをコピーしました':'コピーに失敗しました')}}
+    document.addEventListener('click',e=>{const t=e.target;if(t.matches('.jump')){const u=t.getAttribute('data-url');if(u)window.open(u,'_blank')}if(t.matches('.copy')){const u=t.getAttribute('data-copy');if(u)copyToClipboard(u)}});
+
+    function h(tag, attrs={}, children=[]) {
+      const el = document.createElement(tag);
+      for (const [k,v] of Object.entries(attrs||{})) {
+        if (k === 'class') el.className = v; else if (k.startsWith('data-')) el.setAttribute(k, v); else el[k] = v;
+      }
+      (Array.isArray(children)?children:[children]).filter(Boolean).forEach(c=>{
+        if (typeof c === 'string') el.appendChild(document.createTextNode(c));
+        else el.appendChild(c);
+      });
+      return el;
+    }
+
+    function render() {
+      if (typeof CONTENU !== 'object') { $root.innerHTML = '<p class="error">contenu.js が読み込めませんでした。</p>'; return; }
+
+      // 章（rubrique）単位で 01,02,03... のキーを拾う
+      const rubriques = Object.keys(CONTENU).filter(k=>/^\d{2}$/.test(k)).sort();
+      rubriques.forEach(rKey => {
+        const section = h('section', {class:'section'});
+        section.appendChild(h('div', {class:'title'}, CONTENU[rKey]));
+        const grid = h('div', {class:'grid'});
+
+        // レベル行: "01-1a" "01-1b" "01-1c" "01-1d" という4点セットを、nの昇順でまとめる
+        // ブレーカー: ラベルが "__BREAK__" の場合に .breaker を挿入できるようにも対応
+        const pairs = Object.keys(CONTENU)
+          .filter(k => k.startsWith(rKey + '-'))
+          .reduce((acc, k) => { acc[k] = CONTENU[k]; return acc; }, {});
+
+        // n 抽出（例：01-4a -> 4）
+        const groups = {};
+        Object.keys(pairs).forEach(k => {
+          const m = k.match(/^\d{2}-(\d+)([a-d])$/);
+          if (!m) return;
+          const n = m[1]; const part = m[2];
+          groups[n] = groups[n] || {a:null,b:null,c:null,d:null};
+          groups[n][part] = pairs[k];
+        });
+
+        const order = Object.keys(groups).map(Number).sort((a,b)=>a-b);
+        order.forEach(n => {
+          const g = groups[n];
+          if (g.a === '__BREAK__') { grid.appendChild(h('hr',{class:'breaker','aria-hidden':'true'})); return; }
+          if (!(g.a && g.b && g.c && g.d)) return; // 不完全な行はスキップ
+          const label = g.a;           // 例: Alphabet / 1-10
+          const meta  = g.b;           // 例: ID: 01a_alphabet
+          const btn   = g.c;           // 例: Alphabet / 1-10（ボタン表示）
+          const url   = g.d;           // 例: 実URL
+
+          const card = h('div', {class:'card'}, [
+            h('div', {class:'label'}, [label, ' ', h('span',{class:'meta'}, meta)]),
+            h('button', {class:'btn-primary jump','data-url':url}, btn),
+            h('button', {class:'copy','data-copy':url}, 'リンク')
+          ]);
+          grid.appendChild(card);
+        });
+
+        section.appendChild(grid);
+        $root.appendChild(section);
+      });
+    }
+
+    try { render(); } catch (e) { console.error(e); $root.innerHTML = '<p class="error">レンダリング中にエラーが発生しました。</p>'; }
+  </script>
+</body>
+</html>
