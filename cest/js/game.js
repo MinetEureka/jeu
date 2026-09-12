@@ -51,8 +51,6 @@ function showToast(message) {
   }, 1300);
 }
 
-// b の設問は a、d の設問は c。
-// a は a、c は c。
 function questionIdFromAnswerId(answerId) {
   const match = /^(\d{2})([a-d])$/.exec(answerId);
   if (!match) throw new Error('Invalid answer id');
@@ -173,7 +171,6 @@ function openPreview(id) {
   image.src = `image/image-${id}.png`;
   image.alt = `image-${id}`;
 
-  // 練習中は文字の答えを表示しません。
   document.getElementById('preview-title').textContent = '';
 
   renderPreviewControls();
@@ -266,7 +263,7 @@ function startTimer() {
 
     if (remaining <= 0) {
       clearInterval(countdown);
-      finalizeAnswer(true);
+      finalizeAnswer(true, false);
     }
   };
 
@@ -284,12 +281,8 @@ function nextTurn() {
 
   baseId = randomBaseId();
 
-  // a/b/c/d を25%ずつ。
   const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
   currentAnswerId = baseId + suffix;
-
-  // 本番で流す設問音声:
-  // b -> a, d -> c
   currentQuestionId = questionIdFromAnswerId(currentAnswerId);
 
   isPlural = suffix === 'c' || suffix === 'd';
@@ -297,7 +290,6 @@ function nextTurn() {
   const yesCase = suffix === 'a' || suffix === 'c';
   correctYesNo = yesCase ? 'oui' : 'non';
 
-  // Non の場合だけ別の画像にします。
   displayedImageId = yesCase
     ? baseId
     : randomIdExcept(baseId);
@@ -312,17 +304,19 @@ function nextTurn() {
 
   renderImages();
 
-  // 本番では質問音声だけ。
   playQuestion(currentQuestionId);
   startTimer();
 }
 
 function submitAnswer() {
   if (phase !== 'answering') return;
-  finalizeAnswer(false);
+
+  // ENTER / OK は明示的なユーザー操作なので、
+  // 回答確定後そのまま次問へ進み、次の質問音声再生のトリガーに使います。
+  finalizeAnswer(false, true);
 }
 
-function finalizeAnswer(timedOut) {
+function finalizeAnswer(timedOut, autoAdvance = false) {
   if (phase !== 'answering') return;
 
   phase = 'locked';
@@ -366,6 +360,22 @@ function finalizeAnswer(timedOut) {
   document.getElementById('timer-bar').style.transform = 'scaleX(0)';
 
   const next = document.getElementById('next-btn');
+
+  if (autoAdvance) {
+    // ENTER / OK で送信できた場合は「次へ」を挟まない。
+    // 送信操作そのものを次問の質問音声再生トリガーにします。
+    next.style.display = 'none';
+
+    if (history.length >= config.rounds) {
+      endGame();
+    } else {
+      nextTurn();
+    }
+    return;
+  }
+
+  // タイムアウト時だけ、次問の音声再生にユーザー操作が必要なので
+  // 「次へ / 結果を見る」を表示します。
   next.style.display = 'inline-block';
   next.textContent =
     history.length >= config.rounds ? '結果を見る' : '次へ';
@@ -377,7 +387,6 @@ function goNext() {
   if (history.length >= config.rounds) {
     endGame();
   } else {
-    // ユーザーのクリックから次問の音声再生へ入ります。
     nextTurn();
   }
 }
