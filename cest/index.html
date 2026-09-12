@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Oui / Non + C'est / Ce sont ゲーム</title>
+  <link rel="stylesheet" href="./game.css">
+  <script>
+    document.addEventListener('contextmenu', e => e.preventDefault());
+  </script>
+</head>
+<body>
+  <h1>Oui / Non + C'est / Ce sont ゲーム</h1>
+
+  <div id="intro-image" class="intro-block">
+    <img src="image/image-00.png" alt="例示画像">
+    <p>学籍番号の下4桁を入力してください</p>
+  </div>
+
+  <div id="start-section">
+    学籍番号:
+    <input
+      type="text"
+      id="student-id"
+      maxlength="4"
+      inputmode="numeric"
+      pattern="[0-9]{4}"
+      autocomplete="off"
+      aria-label="学籍番号の下4桁"
+    />
+    <button id="start-btn" type="button" onclick="startGame()">スタート</button>
+  </div>
+
+  <!-- 練習パート -->
+  <section id="today-section">
+    <div id="today-title">練習</div>
+    <div id="today-list"></div>
+  </section>
+
+  <main id="game-area" style="display:none;">
+    <div id="game-info">
+      <span id="turn-info"></span>
+      <span id="score-info"></span>
+    </div>
+
+    <div id="timer-bar-wrap" aria-hidden="true">
+      <div id="timer-bar"></div>
+    </div>
+    <div id="counter" aria-live="polite"></div>
+
+    <div id="question-images" class="single"></div>
+
+    <div id="yes-no-row" aria-label="Oui または Non を選択">
+      <button id="yes-btn" type="button" onclick="selectYesNo('oui')">Oui</button>
+      <button id="no-btn" type="button" onclick="selectYesNo('non')">Non</button>
+    </div>
+
+    <div id="input-guide">キーボードのマイクで答えてください</div>
+
+    <div id="input-section">
+      <input
+        type="text"
+        id="text-input"
+        autocomplete="off"
+        autocapitalize="none"
+        spellcheck="false"
+        aria-label="フランス語の答え"
+        onkeydown="if(event.key==='Enter' && !event.isComposing && !event.repeat){ event.preventDefault(); submitAnswer(); }"
+      />
+      <button id="ok-btn" type="button" onclick="submitAnswer()">OK</button>
+    </div>
+
+    <button id="next-btn" type="button" style="display:none;" onclick="goNext()">次へ</button>
+  </main>
+
+  <div id="result" style="display:none;"></div>
+  <div id="toast"></div>
+
+  <audio id="audio-player" preload="none" playsinline></audio>
+  <audio id="audio-re-player" preload="none" playsinline></audio>
+
+  <script src="./js/config.js"></script>
+  <script src="./js/scorekey.js"></script>
+  <script src="./js/code.js"></script>
+  <script src="./js/reponses.js"></script>
+  <script src="./js/calc.js"></script>
+  <script src="./js/audio.js"></script>
+  <script src="./js/game.js"></script>
+
+  <!-- 練習用オーバーレイ -->
+  <div id="preview-layer">
+    <div id="preview-inner">
+      <div>
+        <img id="preview-img" alt="preview" onclick="closePreview()">
+      </div>
+      <div id="preview-title"></div>
+      <div class="preview-controls" id="preview-controls"></div>
+      <div class="preview-close">
+        <button type="button" onclick="closePreview()">閉じる</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
