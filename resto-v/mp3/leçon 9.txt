@@ -1,0 +1,16 @@
+des escargots
+une salade
+une mousse au chocolat
+une tarte aux pommes
+un steak
+un poulet
+un saumon
+un verre d'eau
+un verre de jus d'orange
+un verre de vin
+une carafe d'eau
+une carafe de jus d'orange
+une carafe de vin
+une bouteille d'eau
+une bouteille de jus d'orange
+une bouteille de vin

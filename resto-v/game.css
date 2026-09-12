@@ -1,0 +1,202 @@
+body {
+  font-family: sans-serif;
+  text-align: center;
+  margin: 0;
+}
+
+img {
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+button,
+input {
+  font-size: 16px;
+}
+
+#start-section {
+  margin: 16px 20px;
+}
+
+#game-info {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 16px;
+  font-size: 0.95em;
+}
+
+/* ===== 練習：イラスト + 音声ボタンのみ ===== */
+#today-section {
+  margin: 16px 20px;
+}
+
+#today-title {
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+#today-list {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (min-width: 768px) {
+  #today-list {
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  }
+}
+
+.practice-card {
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: 10px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.practice-card img {
+  width: 100%;
+  height: auto;
+  max-height: 130px;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.practice-play {
+  min-width: 54px;
+  padding: 7px 14px;
+}
+
+/* ===== 5〜7秒回答画面 ===== */
+#overlay {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  background: rgba(245, 245, 245, 0.98);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  z-index: 20;
+  overflow: auto;
+  padding: 18px 16px 28px;
+}
+
+
+#question-progress {
+  width: min(92vw, 720px);
+  box-sizing: border-box;
+  text-align: right;
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 auto 6px;
+  color: #333;
+}
+
+#timer-track {
+  width: min(92vw, 720px);
+  height: 12px;
+  flex: 0 0 12px;
+  background: #ddd;
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 0 auto 14px;
+}
+
+#timer-progress {
+  width: 100%;
+  height: 100%;
+  background: #222;
+  transform-origin: left center;
+  transform: scaleX(1);
+}
+
+#question-area {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: min(92vw, 720px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#question-image {
+  max-width: min(88vw, 560px);
+  max-height: 52vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+#instruction {
+  margin-top: 10px;
+  font-size: 1.05em;
+}
+
+#input-section {
+  width: min(92vw, 620px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+#text-input {
+  min-width: 0;
+  padding: 10px 12px;
+  font-size: 20px;
+}
+
+#action-button {
+  min-width: 74px;
+  padding: 10px 16px;
+}
+
+#timeout-message {
+  margin-top: 10px;
+  font-weight: 700;
+}
+
+/* ===== 結果 ===== */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.9em;
+}
+
+th,
+td {
+  border-bottom: 1px solid #eee;
+  padding: 7px 5px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.history-scroll {
+  overflow-x: auto;
+  margin: 16px 8px;
+}
+
+.review-play {
+  padding: 6px 10px;
+}
+
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.78);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  z-index: 40;
+}

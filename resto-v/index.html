@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>フランス語発話ゲーム</title>
+  <link rel="stylesheet" href="./game.css">
+  <script>
+    document.addEventListener('contextmenu', e => e.preventDefault());
+  </script>
+</head>
+<body>
+  <h1>フランス語発話ゲーム</h1>
+
+  <div id="intro-image" style="margin-top:20px;">
+    <img src="image/image-00.png" alt="例示画像" style="width:60%; max-width:300px;">
+    <p style="font-size:1.1em; margin:10px 20px;">
+      イラストを見て、フランス語で答えてください。スマートフォンのマイク機能を使用してください。
+    </p>
+  </div>
+
+  <div id="start-section">
+    学籍番号（下4桁）:
+    <input type="text" id="student-id" maxlength="4" inputmode="numeric"
+           pattern="[0-9]{4}" autocomplete="off" aria-label="学籍番号の下4桁">
+    <button id="start-btn" onclick="startGame()">スタート</button>
+  </div>
+
+  <!-- 練習：テキストは出さず、イラスト＋正解音声ボタンだけ -->
+  <div id="today-section">
+    <div id="today-title">練習しよう</div>
+    <div id="today-list"></div>
+  </div>
+
+  <div id="game-info" style="display:none;">
+    <span id="turn-info"></span>
+    <span id="score-info"></span>
+  </div>
+
+  <!-- 本番：音声は一切再生しない -->
+  <div id="overlay">
+    <div id="question-progress" aria-live="polite">1 / 10</div>
+
+    <div id="timer-track" aria-label="残り時間">
+      <div id="timer-progress"></div>
+    </div>
+
+    <div id="question-area">
+      <img id="question-image" alt="問題イラスト">
+    </div>
+
+    <div id="instruction">フランス語で答えてください</div>
+
+    <div id="input-section">
+      <input type="text" id="text-input"
+             lang="fr"
+             autocomplete="off"
+             autocapitalize="none"
+             spellcheck="false"
+             enterkeyhint="done">
+      <button id="action-button" type="button">OK</button>
+    </div>
+
+    <div id="timeout-message" hidden>時間切れです</div>
+  </div>
+
+  <div id="result" style="display:none;"></div>
+  <div id="toast" role="status" hidden></div>
+
+  <!-- 音声フォールバック -->
+  <audio id="audio-player" preload="metadata" playsinline></audio>
+
+  <!-- 既存の提出コード関係はそのまま利用 -->
+  <script src="./js/config.js"></script>
+  <script src="./js/scorekey.js"></script>
+  <script src="./js/code.js"></script>
+  <script src="./js/reponses.js"></script>
+  <script src="./js/calc.js"></script>
+  <script src="./js/audio.js"></script>
+  <script src="./js/game.js"></script>
+</body>
+</html>
