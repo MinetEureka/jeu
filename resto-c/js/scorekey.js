@@ -1,1 +1,1 @@
-window.scoreKey = 6;
+window.scoreKey = 28;
