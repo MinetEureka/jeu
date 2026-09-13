@@ -11,6 +11,7 @@ let turn = 0;
 let score = 0;
 let countdown = null;
 let answerDeadline = 0;
+let timerStarted = false;
 let history = [];
 
 let baseId = '';
@@ -32,6 +33,12 @@ function normalizeAnswer(value) {
     .replace(/\u00a0/g, ' ')
     .replace(/[.,!?;:…]+$/g, '')
     .replace(/\s+/g, ' ');
+}
+
+function acceptedAnswersFor(answerId) {
+  const raw = responses[answerId];
+  const list = Array.isArray(raw) ? raw : [raw];
+  return list.map(normalizeAnswer);
 }
 
 function escapeHTML(value) {
@@ -89,7 +96,16 @@ function validateSetup() {
 
     for (const suffix of suffixes) {
       const key = id + suffix;
-      if (typeof responses[key] !== 'string' || !responses[key].trim()) {
+      const response = responses[key];
+      const valid =
+        (typeof response === 'string' && response.trim()) ||
+        (
+          Array.isArray(response) &&
+          response.length > 0 &&
+          response.every(item => typeof item === 'string' && item.trim())
+        );
+
+      if (!valid) {
         throw new Error(`回答データ ${key} がありません。reponses.jsを確認してください。`);
       }
     }
@@ -212,6 +228,7 @@ function renderImages() {
 
 function resetControls() {
   selectedYesNo = '';
+  timerStarted = false;
 
   const yes = document.getElementById('yes-btn');
   const no = document.getElementById('no-btn');
@@ -225,8 +242,11 @@ function resetControls() {
   no.classList.remove('selected');
 
   input.value = '';
-  input.disabled = false;
-  ok.disabled = false;
+  input.disabled = true;
+  ok.disabled = true;
+
+  const guide = document.getElementById('input-guide');
+  if (guide) guide.textContent = 'Oui / Nonを選びましょう';
 
   next.style.display = 'none';
   next.textContent = '次へ';
@@ -243,7 +263,23 @@ function selectYesNo(value) {
   document.getElementById('no-btn')
     .classList.toggle('selected', value === 'non');
 
-  document.getElementById('text-input').focus();
+  const input = document.getElementById('text-input');
+  const ok = document.getElementById('ok-btn');
+
+  input.disabled = false;
+  ok.disabled = false;
+
+  const guide = document.getElementById('input-guide');
+  if (guide) guide.textContent = 'キーボードのマイクで答えてください';
+
+  // 最初に Oui / Non を選んだときだけカウントダウン開始。
+  // 途中で Oui ⇄ Non を押し直しても残り時間はリセットしない。
+  if (!timerStarted) {
+    timerStarted = true;
+    startTimer();
+  }
+
+  input.focus();
 }
 
 function startTimer() {
@@ -294,7 +330,7 @@ function nextTurn() {
     ? baseId
     : randomIdExcept(baseId);
 
-  correctAnswer = normalizeAnswer(responses[currentAnswerId]);
+  correctAnswer = acceptedAnswersFor(currentAnswerId)[0];
 
   document.getElementById('turn-info').textContent =
     `${turn} / ${config.rounds}`;
@@ -305,7 +341,12 @@ function nextTurn() {
   renderImages();
 
   playQuestion(currentQuestionId);
-  startTimer();
+}
+
+
+function replayCurrentQuestion() {
+  if (phase !== 'answering') return;
+  playQuestion(currentQuestionId);
 }
 
 function submitAnswer() {
@@ -328,7 +369,8 @@ function finalizeAnswer(timedOut, autoAdvance = false) {
   );
 
   const choiceCorrect = selectedYesNo === correctYesNo;
-  const speechCorrect = userAnswer === correctAnswer;
+  const acceptedAnswers = acceptedAnswersFor(currentAnswerId);
+  const speechCorrect = acceptedAnswers.includes(userAnswer);
   const isCorrect = choiceCorrect && speechCorrect;
 
   if (isCorrect) score++;
@@ -558,6 +600,21 @@ function startGame() {
 
 window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('audio-player').src = config.mainAudio;
+
+  // 本番用の「聞き直す」ボタンを追加。
+  // 再生してもカウントダウンは停止・リセットしません。
+  if (!document.getElementById('replay-question-btn')) {
+    const replayButton = document.createElement('button');
+    replayButton.id = 'replay-question-btn';
+    replayButton.type = 'button';
+    replayButton.textContent = '🔊 聞き直す';
+    replayButton.addEventListener('click', replayCurrentQuestion);
+
+    const yesNoRow = document.getElementById('yes-no-row');
+    if (yesNoRow && yesNoRow.parentNode) {
+      yesNoRow.parentNode.insertBefore(replayButton, yesNoRow);
+    }
+  }
   document.getElementById('audio-re-player').src = config.reviewAudio;
 
   try {

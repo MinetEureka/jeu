@@ -42,7 +42,7 @@ window.responses = Object.freeze({
   "08a": "c'est une employée",
   "08b": "ce n'est pas une employée",
   "08c": "ce sont des employées",
-  "08d": "ce ne sont pas des employées",
+  "08d": ["ce ne sont pas des employées", "ce ne sont pas des employés"],
 
   "09a": "c'est un cahier",
   "09b": "ce n'est pas un cahier",
