@@ -124,66 +124,115 @@ window.segmentAudio = (() => {
     }
   }
 
-  let preloading = false;
+  let preparing = false;
 
-  function setLoadingText(id, text) {
-    const element = document.getElementById(id);
-    if (element) element.textContent = text;
+  function setStatus(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
   }
 
   function hasReviewAudio() {
     return typeof config.reviewAudio === 'string' && config.reviewAudio.trim() !== '';
   }
 
-  function hideLoadingOverlay() {
+  function waitUntilPlayable(element, src, timeoutMs = 30000) {
+    return new Promise((resolve, reject) => {
+      if (!element || !src) {
+        reject(new Error('Audio element or source is missing'));
+        return;
+      }
+
+      let finished = false;
+      const cleanup = () => {
+        clearTimeout(timer);
+        element.removeEventListener('canplaythrough', ready);
+        element.removeEventListener('canplay', ready);
+        element.removeEventListener('error', failed);
+      };
+      const finish = (error) => {
+        if (finished) return;
+        finished = true;
+        cleanup();
+        error ? reject(error) : resolve();
+      };
+      const ready = () => finish();
+      const failed = () => finish(new Error('Audio loading failed'));
+      const timer = setTimeout(() => finish(new Error('Audio loading timed out')), timeoutMs);
+
+      element.addEventListener('canplaythrough', ready, { once: true });
+      element.addEventListener('canplay', ready, { once: true });
+      element.addEventListener('error', failed, { once: true });
+
+      // game.js normally sets src before calling preload(), but set it here too
+      // so the readiness check remains self-contained.
+      if (element.getAttribute('src') !== src) element.src = src;
+
+      if (element.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+        finish();
+        return;
+      }
+
+      element.preload = 'auto';
+      try {
+        element.load();
+      } catch (error) {
+        finish(error);
+      }
+    });
+  }
+
+  async function prepareAudioFiles() {
+    if (preparing) return;
+    preparing = true;
+
     const overlay = document.getElementById('audio-loading-overlay');
-    if (overlay) overlay.style.display = 'none';
-  }
-
-  function showLoadingError() {
-    setLoadingText('audio-loading-title', '音声を読み込めませんでした');
     const retry = document.getElementById('audio-loading-retry');
-    if (retry) retry.style.display = 'inline-block';
-  }
+    const mainElement = document.getElementById('audio-player');
+    const reviewElement = document.getElementById('audio-re-player');
+    const needsReview = hasReviewAudio();
 
-  async function preload() {
-    if (preloading) return;
-    preloading = true;
-
-    const retry = document.getElementById('audio-loading-retry');
+    if (overlay) overlay.style.display = 'flex';
     if (retry) retry.style.display = 'none';
-
-    setLoadingText('audio-loading-title', '音声を準備しています……');
-    setLoadingText('audio-main-status', '質問の音声をロードしています……');
+    setStatus('audio-loading-title', '音声を準備しています……');
+    setStatus('audio-main-status', '質問の音声をロードしています……');
 
     const reviewStatus = document.getElementById('audio-review-status');
-    const needsReview = hasReviewAudio();
     if (reviewStatus) {
       reviewStatus.style.display = needsReview ? '' : 'none';
       if (needsReview) reviewStatus.textContent = '答えの音声をロードしています……';
     }
 
     try {
-      // 2本を同時にデコードせず、質問→答えの順に準備します。
-      await load('main');
-      setLoadingText('audio-main-status', '質問の音声をロードしています……完了');
+      await waitUntilPlayable(mainElement, config.mainAudio);
+      setStatus('audio-main-status', '質問の音声をロードしています……完了');
 
       if (needsReview) {
-        await load('review');
-        setLoadingText('audio-review-status', '答えの音声をロードしています……完了');
+        await waitUntilPlayable(reviewElement, config.reviewAudio);
+        setStatus('audio-review-status', '答えの音声をロードしています……完了');
       }
 
-      hideLoadingOverlay();
+      if (overlay) overlay.style.display = 'none';
+
+      // Preserve the original optimization: begin Web Audio decoding of main
+      // after the media files are ready, without blocking the UI.
+      void load('main').catch(() => {});
     } catch (error) {
-      console.error('Audio preload failed:', error);
-      showLoadingError();
+      console.error('Audio preparation failed:', error);
+      setStatus('audio-loading-title', '音声を読み込めませんでした');
+      if (retry) retry.style.display = 'inline-block';
     } finally {
-      preloading = false;
+      preparing = false;
     }
   }
 
+  function preload() {
+    void prepareAudioFiles();
+  }
+
   document.addEventListener('click', event => {
-    if (event.target && event.target.id === 'audio-loading-retry') preload();
+    if (event.target && event.target.id === 'audio-loading-retry') {
+      void prepareAudioFiles();
+    }
   });
   window.addEventListener('pagehide', stop);
   return Object.freeze({ play, stop, preload });
