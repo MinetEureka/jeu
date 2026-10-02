@@ -145,6 +145,7 @@ window.segmentAudio = (() => {
       let finished = false;
       const cleanup = () => {
         clearTimeout(timer);
+        clearInterval(readyCheck);
         element.removeEventListener('canplaythrough', ready);
         element.removeEventListener('canplay', ready);
         element.removeEventListener('error', failed);
@@ -158,6 +159,16 @@ window.segmentAudio = (() => {
       const ready = () => finish();
       const failed = () => finish(new Error('Audio loading failed'));
       const timer = setTimeout(() => finish(new Error('Audio loading timed out')), timeoutMs);
+
+      // iOS Safari may finish preparing the media without delivering the
+      // expected canplay/canplaythrough event to this listener. Re-check the
+      // actual readyState every 5 seconds, equivalent to the successful
+      // manual retry path without restarting the download.
+      const readyCheck = setInterval(() => {
+        if (element.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+          finish();
+        }
+      }, 5000);
 
       element.addEventListener('canplaythrough', ready, { once: true });
       element.addEventListener('canplay', ready, { once: true });
