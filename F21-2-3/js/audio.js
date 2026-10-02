@@ -125,9 +125,6 @@ window.segmentAudio = (() => {
   }
 
   let preparing = false;
-  let prepareGeneration = 0;
-  let autoRetryTimer = null;
-  let autoRetryStopTimer = null;
 
   function setStatus(id, text) {
     const el = document.getElementById(id);
@@ -185,7 +182,7 @@ window.segmentAudio = (() => {
   }
 
   async function prepareAudioFiles() {
-    const myGeneration = ++prepareGeneration;
+    if (preparing) return;
     preparing = true;
 
     const overlay = document.getElementById('audio-loading-overlay');
@@ -196,7 +193,7 @@ window.segmentAudio = (() => {
 
     if (overlay) overlay.style.display = 'flex';
     if (retry) retry.style.display = 'none';
-    setStatus('audio-loading-title', '準備中です……');
+    setStatus('audio-loading-title', '音声を準備しています……');
     setStatus('audio-main-status', '質問の音声をロードしています……');
 
     const reviewStatus = document.getElementById('audio-review-status');
@@ -224,38 +221,23 @@ window.segmentAudio = (() => {
       setStatus('audio-loading-title', '音声を読み込めませんでした');
       if (retry) retry.style.display = 'inline-block';
     } finally {
-      if (myGeneration === prepareGeneration) preparing = false;
-    }
-  }
-
-  function stopAutoPrepareRetry() {
-    if (autoRetryTimer) {
-      clearInterval(autoRetryTimer);
-      autoRetryTimer = null;
-    }
-    if (autoRetryStopTimer) {
-      clearTimeout(autoRetryStopTimer);
-      autoRetryStopTimer = null;
+      preparing = false;
     }
   }
 
   function preload() {
-    stopAutoPrepareRetry();
-
-    // Initial run.
+    // 初回
     void prepareAudioFiles();
 
-    // Repeat EXACTLY the same function that the manual
-    // "もう一度読み込む" button runs.
-    autoRetryTimer = setInterval(() => {
+    // 5秒おきに、手動ボタンと同じ一行だけを呼ぶ
+    const prepareRetryTimer = setInterval(() => {
       void prepareAudioFiles();
     }, 5000);
 
-    // After 30 seconds stop automatic retries.
-    // If preparation has still not completed, prepareAudioFiles()'s normal
-    // failure UI / manual retry button remains available.
-    autoRetryStopTimer = setTimeout(() => {
-      stopAutoPrepareRetry();
+    // 30秒で自動呼び出しだけ終了。
+    // 以後は従来どおり「もう一度読み込む」ボタンで再試行できる。
+    setTimeout(() => {
+      clearInterval(prepareRetryTimer);
     }, 30000);
   }
 
