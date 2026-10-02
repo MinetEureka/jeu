@@ -125,6 +125,72 @@ window.segmentAudio = (() => {
   }
 
   let preparing = false;
+  let progressFrame = 0;
+  let progressStartedAt = 0;
+  let displayedProgress = 0;
+
+  function setProgress(value) {
+    displayedProgress = Math.max(0, Math.min(100, value));
+    const bar = document.getElementById('audio-progress-bar');
+    if (bar) bar.style.width = displayedProgress.toFixed(1) + '%';
+  }
+
+  function startFakeProgress() {
+    cancelAnimationFrame(progressFrame);
+    progressStartedAt = performance.now();
+    displayedProgress = 0;
+    setProgress(0);
+
+    const tick = now => {
+      const seconds = (now - progressStartedAt) / 1000;
+      let value;
+
+      // 10秒想定の演出。
+      // 0〜5秒は約50%、その後は90%前後へ減速しながら近づきます。
+      if (seconds <= 5) {
+        value = seconds * 10;
+      } else {
+        value = 50 + 42 * (1 - Math.exp(-(seconds - 5) / 2.2));
+      }
+
+      setProgress(Math.min(value, 92));
+      progressFrame = requestAnimationFrame(tick);
+    };
+
+    progressFrame = requestAnimationFrame(tick);
+  }
+
+  function finishProgress() {
+    cancelAnimationFrame(progressFrame);
+
+    return new Promise(resolve => {
+      const start = performance.now();
+      const from = displayedProgress;
+      const duration = 320;
+
+      const tick = now => {
+        const t = Math.min(1, (now - start) / duration);
+        const eased = 1 - Math.pow(1 - t, 3);
+        setProgress(from + (100 - from) * eased);
+
+        if (t < 1) {
+          progressFrame = requestAnimationFrame(tick);
+        } else {
+          setProgress(100);
+          resolve();
+        }
+      };
+
+      progressFrame = requestAnimationFrame(tick);
+    });
+  }
+
+  function resetProgress() {
+    cancelAnimationFrame(progressFrame);
+    progressFrame = 0;
+    setProgress(0);
+  }
+
 
   function hasReviewAudio() {
     return typeof config.reviewAudio === 'string' && config.reviewAudio.trim() !== '';
@@ -185,6 +251,7 @@ window.segmentAudio = (() => {
     const gateText = document.getElementById('audio-start-gate-text');
     const startButton = document.getElementById('start-btn');
     const status = document.getElementById('audio-load-status');
+    const progressWrap = document.getElementById('audio-progress-wrap');
     const mainElement = document.getElementById('audio-player');
     const reviewElement = document.getElementById('audio-re-player');
 
@@ -198,8 +265,10 @@ window.segmentAudio = (() => {
 
     // 暗転はすぐ解除。学生は学籍番号入力などを進められる。
     if (gate) gate.style.display = 'none';
-    if (status) status.style.display = 'inline';
+    if (status) status.style.display = 'block';
+    if (progressWrap) progressWrap.style.display = 'block';
     if (startButton) startButton.style.display = 'none';
+    startFakeProgress();
 
     const tasks = [
       waitUntilPlayable(mainElement, config.mainAudio)
@@ -224,9 +293,11 @@ window.segmentAudio = (() => {
       tasks.push(load('main'));
     }
 
-    Promise.all(tasks).then(() => {
+    Promise.all(tasks).then(async () => {
+      await finishProgress();
       preparing = false;
       if (status) status.style.display = 'none';
+      if (progressWrap) progressWrap.style.display = 'none';
       if (startButton) startButton.style.display = '';
 
       // main の準備が終わった後、review は裏で取得・デコードします。
@@ -238,7 +309,9 @@ window.segmentAudio = (() => {
     }).catch(error => {
       console.error('Audio preparation failed:', error);
       preparing = false;
+      resetProgress();
       if (status) status.style.display = 'none';
+      if (progressWrap) progressWrap.style.display = 'none';
       if (gateText) gateText.textContent = '音声を準備できませんでした。もう一度押してください';
       if (gateButton) gateButton.disabled = false;
       if (gate) gate.style.display = 'flex';

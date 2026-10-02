@@ -37,8 +37,24 @@
     }
     #audio-load-status {
       display: none;
-      margin-left: 8px;
+      margin-top: 8px;
       font-size: 0.95em;
+    }
+    #audio-progress-wrap {
+      display: none;
+      width: min(320px, 82vw);
+      height: 10px;
+      margin: 8px auto 0;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.12);
+    }
+    #audio-progress-bar {
+      width: 0%;
+      height: 100%;
+      border-radius: inherit;
+      background: currentColor;
+      transition: width 80ms linear;
     }
   </style>
 </head>
@@ -64,8 +80,11 @@
       学籍番号: <input type="text" id="student-id" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="off" aria-label="学籍番号の下4桁" />
     </div>
     <div style="margin-top:10px;">
-      <button id="start-btn" onclick="startGame()" style="display:none">スタート</button>
-      <span id="audio-load-status" aria-live="polite">音声を準備しています…</span>
+      <div id="audio-load-status" aria-live="polite">音声を準備しています…</div>
+      <div id="audio-progress-wrap" aria-hidden="true">
+        <div id="audio-progress-bar"></div>
+      </div>
+      <button id="start-btn" onclick="startGame()" style="display:none; margin-top:10px;">スタート</button>
     </div>
   </div>
 
