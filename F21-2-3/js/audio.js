@@ -125,6 +125,9 @@ window.segmentAudio = (() => {
   }
 
   let preparing = false;
+  let prepareGeneration = 0;
+  let autoRetryTimer = null;
+  let autoRetryStopTimer = null;
 
   function setStatus(id, text) {
     const el = document.getElementById(id);
@@ -143,68 +146,46 @@ window.segmentAudio = (() => {
       }
 
       let finished = false;
-      let retryTimer = null;
-
       const cleanup = () => {
-        clearTimeout(timeoutTimer);
-        clearInterval(retryTimer);
+        clearTimeout(timer);
         element.removeEventListener('canplaythrough', ready);
         element.removeEventListener('canplay', ready);
         element.removeEventListener('error', failed);
       };
-
-      const finish = error => {
+      const finish = (error) => {
         if (finished) return;
         finished = true;
         cleanup();
         error ? reject(error) : resolve();
       };
-
       const ready = () => finish();
       const failed = () => finish(new Error('Audio loading failed'));
-
-      const tryLoad = () => {
-        if (finished) return;
-
-        // First check exactly as the manual retry path does: if Safari has
-        // already prepared the media, finish immediately.
-        if (element.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
-          finish();
-          return;
-        }
-
-        // Otherwise repeat the actual loading action used when the user
-        // presses "もう一度読み込む".
-        element.preload = 'auto';
-        if (element.getAttribute('src') !== src) element.src = src;
-
-        try {
-          element.load();
-        } catch (error) {
-          // Do not fail immediately on a retry attempt. Safari may recover on
-          // the next 5-second attempt. The 30-second timeout remains the final
-          // fallback to the manual retry button.
-          console.warn('Audio reload attempt failed:', error);
-        }
-      };
+      const timer = setTimeout(() => finish(new Error('Audio loading timed out')), timeoutMs);
 
       element.addEventListener('canplaythrough', ready, { once: true });
       element.addEventListener('canplay', ready, { once: true });
       element.addEventListener('error', failed, { once: true });
 
-      const timeoutTimer = setTimeout(
-        () => finish(new Error('Audio loading timed out')),
-        timeoutMs
-      );
+      // game.js normally sets src before calling preload(), but set it here too
+      // so the readiness check remains self-contained.
+      if (element.getAttribute('src') !== src) element.src = src;
 
-      // Initial attempt, then repeat the same loading action every 5 seconds.
-      tryLoad();
-      retryTimer = setInterval(tryLoad, 5000);
+      if (element.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+        finish();
+        return;
+      }
+
+      element.preload = 'auto';
+      try {
+        element.load();
+      } catch (error) {
+        finish(error);
+      }
     });
   }
 
   async function prepareAudioFiles() {
-    if (preparing) return;
+    const myGeneration = ++prepareGeneration;
     preparing = true;
 
     const overlay = document.getElementById('audio-loading-overlay');
@@ -215,7 +196,7 @@ window.segmentAudio = (() => {
 
     if (overlay) overlay.style.display = 'flex';
     if (retry) retry.style.display = 'none';
-    setStatus('audio-loading-title', '音声の準備中です……');
+    setStatus('audio-loading-title', '準備中です……');
     setStatus('audio-main-status', '質問の音声をロードしています……');
 
     const reviewStatus = document.getElementById('audio-review-status');
@@ -243,19 +224,42 @@ window.segmentAudio = (() => {
       setStatus('audio-loading-title', '音声を読み込めませんでした');
       if (retry) retry.style.display = 'inline-block';
     } finally {
-      preparing = false;
+      if (myGeneration === prepareGeneration) preparing = false;
+    }
+  }
+
+  function stopAutoPrepareRetry() {
+    if (autoRetryTimer) {
+      clearInterval(autoRetryTimer);
+      autoRetryTimer = null;
+    }
+    if (autoRetryStopTimer) {
+      clearTimeout(autoRetryStopTimer);
+      autoRetryStopTimer = null;
     }
   }
 
   function preload() {
+    stopAutoPrepareRetry();
+
+    // Initial run.
     void prepareAudioFiles();
+
+    // Repeat EXACTLY the same function that the manual
+    // "もう一度読み込む" button runs.
+    autoRetryTimer = setInterval(() => {
+      void prepareAudioFiles();
+    }, 5000);
+
+    // After 30 seconds stop automatic retries.
+    // If preparation has still not completed, prepareAudioFiles()'s normal
+    // failure UI / manual retry button remains available.
+    autoRetryStopTimer = setTimeout(() => {
+      stopAutoPrepareRetry();
+    }, 30000);
   }
 
-  document.addEventListener('click', event => {
-    if (event.target && event.target.id === 'audio-loading-retry') {
-      void prepareAudioFiles();
-    }
-  });
+
   window.addEventListener('pagehide', stop);
   return Object.freeze({ play, stop, preload });
 })();
