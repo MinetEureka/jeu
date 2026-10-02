@@ -6,11 +6,50 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>動詞学習ゲーム</title>
   <link rel="stylesheet" href="./game.css">
+
+  <style>
+    #audio-loading-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.88);
+      color: #fff;
+      text-align: left;
+    }
+    #audio-loading-box {
+      padding: 24px;
+      font-size: 1.05rem;
+      line-height: 1.8;
+    }
+    #audio-loading-title {
+      margin: 0 0 12px;
+      font-size: 1.2rem;
+      font-weight: bold;
+    }
+    #audio-loading-retry {
+      display: none;
+      margin-top: 12px;
+      padding: 8px 16px;
+      font-size: 1rem;
+    }
+  </style>
   <script>
     document.addEventListener('contextmenu', e => e.preventDefault());
   </script>
 </head>
 <body>
+
+  <div id="audio-loading-overlay" role="status" aria-live="polite">
+    <div id="audio-loading-box">
+      <p id="audio-loading-title">音声を準備しています……</p>
+      <div id="audio-main-status">質問の音声をロードしています……</div>
+      <div id="audio-review-status">答えの音声をロードしています……</div>
+      <button id="audio-loading-retry" type="button">もう一度読み込む</button>
+    </div>
+  </div>
   <h1>動詞学習ゲーム</h1>
   <div id="intro-image" style="margin-top: 20px;">
     <img src="image/image-00.png" alt="例示画像" style="width:60%; max-width:300px;" />

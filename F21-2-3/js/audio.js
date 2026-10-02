@@ -124,10 +124,67 @@ window.segmentAudio = (() => {
     }
   }
 
-  function preload() {
-    // 巨大なPCMバッファ2本を同時に確保せず、質問側だけを先読みします。
-    void load('main').catch(() => {});
+  let preloading = false;
+
+  function setLoadingText(id, text) {
+    const element = document.getElementById(id);
+    if (element) element.textContent = text;
   }
+
+  function hasReviewAudio() {
+    return typeof config.reviewAudio === 'string' && config.reviewAudio.trim() !== '';
+  }
+
+  function hideLoadingOverlay() {
+    const overlay = document.getElementById('audio-loading-overlay');
+    if (overlay) overlay.style.display = 'none';
+  }
+
+  function showLoadingError() {
+    setLoadingText('audio-loading-title', '音声を読み込めませんでした');
+    const retry = document.getElementById('audio-loading-retry');
+    if (retry) retry.style.display = 'inline-block';
+  }
+
+  async function preload() {
+    if (preloading) return;
+    preloading = true;
+
+    const retry = document.getElementById('audio-loading-retry');
+    if (retry) retry.style.display = 'none';
+
+    setLoadingText('audio-loading-title', '音声を準備しています……');
+    setLoadingText('audio-main-status', '質問の音声をロードしています……');
+
+    const reviewStatus = document.getElementById('audio-review-status');
+    const needsReview = hasReviewAudio();
+    if (reviewStatus) {
+      reviewStatus.style.display = needsReview ? '' : 'none';
+      if (needsReview) reviewStatus.textContent = '答えの音声をロードしています……';
+    }
+
+    try {
+      // 2本を同時にデコードせず、質問→答えの順に準備します。
+      await load('main');
+      setLoadingText('audio-main-status', '質問の音声をロードしています……完了');
+
+      if (needsReview) {
+        await load('review');
+        setLoadingText('audio-review-status', '答えの音声をロードしています……完了');
+      }
+
+      hideLoadingOverlay();
+    } catch (error) {
+      console.error('Audio preload failed:', error);
+      showLoadingError();
+    } finally {
+      preloading = false;
+    }
+  }
+
+  document.addEventListener('click', event => {
+    if (event.target && event.target.id === 'audio-loading-retry') preload();
+  });
   window.addEventListener('pagehide', stop);
   return Object.freeze({ play, stop, preload });
 })();
