@@ -130,6 +130,52 @@ window.segmentAudio = (() => {
     return typeof config.reviewAudio === 'string' && config.reviewAudio.trim() !== '';
   }
 
+  function waitUntilPlayable(element, src, timeoutMs = 30000) {
+    return new Promise((resolve, reject) => {
+      if (!element || !src) {
+        reject(new Error('Audio element or source is missing'));
+        return;
+      }
+
+      let finished = false;
+      const finish = error => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        element.removeEventListener('canplaythrough', ready);
+        element.removeEventListener('canplay', ready);
+        element.removeEventListener('error', failed);
+        error ? reject(error) : resolve();
+      };
+      const ready = () => finish();
+      const failed = () => finish(new Error('Audio loading failed'));
+
+      element.addEventListener('canplaythrough', ready, { once: true });
+      element.addEventListener('canplay', ready, { once: true });
+      element.addEventListener('error', failed, { once: true });
+
+      if (element.getAttribute('src') !== src) element.src = src;
+      element.preload = 'auto';
+
+      // すでに使用可能なら即完了。
+      if (element.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+        finish();
+        return;
+      }
+
+      const timer = setTimeout(
+        () => finish(new Error('Audio loading timed out')),
+        timeoutMs
+      );
+
+      try {
+        element.load();
+      } catch (error) {
+        finish(error);
+      }
+    });
+  }
+
   function beginAudioPreparation() {
     if (preparing) return;
     preparing = true;
@@ -144,39 +190,30 @@ window.segmentAudio = (() => {
 
     if (gateButton) gateButton.disabled = true;
 
-    // Commencer の実クリック中に、Safari が必要とする操作をまとめて開始します。
-    let resumed = Promise.resolve();
+    // Commencer の実クリック中に Safari の user activation を確保。
     try {
       const ctx = getContext();
-      if (ctx.state !== 'running') resumed = ctx.resume();
+      if (ctx.state !== 'running') void ctx.resume().catch(() => {});
+    } catch (_) {}
 
-      if (mainElement && config.mainAudio) {
-        if (mainElement.getAttribute('src') !== config.mainAudio) {
-          mainElement.src = config.mainAudio;
-        }
-        mainElement.preload = 'auto';
-        mainElement.load();
-      }
-
-      if (hasReviewAudio() && reviewElement) {
-        if (reviewElement.getAttribute('src') !== config.reviewAudio) {
-          reviewElement.src = config.reviewAudio;
-        }
-        reviewElement.preload = 'auto';
-        reviewElement.load();
-      }
-    } catch (error) {
-      resumed = Promise.reject(error);
-    }
-
-    // ユーザー操作を取得できたので、暗転はすぐ解除します。
+    // 暗転はすぐ解除。学生は学籍番号入力などを進められる。
     if (gate) gate.style.display = 'none';
     if (status) status.style.display = 'inline';
     if (startButton) startButton.style.display = 'none';
 
-    // 実際のゲームで使う Web Audio の取得＋デコードが終わるまで待ちます。
-    const tasks = [resumed, load('main')];
-    if (hasReviewAudio()) tasks.push(load('review'));
+    const tasks = [
+      waitUntilPlayable(mainElement, config.mainAudio)
+    ];
+    if (hasReviewAudio()) {
+      tasks.push(waitUntilPlayable(reviewElement, config.reviewAudio));
+    }
+
+    // HTTP/HTTPS では Web Audio 用バッファも裏で先読み。
+    // file:// では fetch() が失敗するため、準備完了条件にはしない。
+    if (location.protocol === 'http:' || location.protocol === 'https:') {
+      void load('main').catch(() => {});
+      if (hasReviewAudio()) void load('review').catch(() => {});
+    }
 
     Promise.all(tasks).then(() => {
       preparing = false;
@@ -186,8 +223,6 @@ window.segmentAudio = (() => {
       console.error('Audio preparation failed:', error);
       preparing = false;
       if (status) status.style.display = 'none';
-
-      // 失敗した場合は、新しいユーザー操作を取れるようにゲートを戻します。
       if (gateText) gateText.textContent = '音声を準備できませんでした。もう一度押してください';
       if (gateButton) gateButton.disabled = false;
       if (gate) gate.style.display = 'flex';
