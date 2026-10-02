@@ -126,122 +126,80 @@ window.segmentAudio = (() => {
 
   let preparing = false;
 
-  function setStatus(id, text) {
-    const el = document.getElementById(id);
-    if (el) el.textContent = text;
-  }
-
   function hasReviewAudio() {
     return typeof config.reviewAudio === 'string' && config.reviewAudio.trim() !== '';
   }
 
-  function waitUntilPlayable(element, src, timeoutMs = 30000) {
-    return new Promise((resolve, reject) => {
-      if (!element || !src) {
-        reject(new Error('Audio element or source is missing'));
-        return;
-      }
-
-      let finished = false;
-      const cleanup = () => {
-        clearTimeout(timer);
-        element.removeEventListener('canplaythrough', ready);
-        element.removeEventListener('canplay', ready);
-        element.removeEventListener('error', failed);
-      };
-      const finish = (error) => {
-        if (finished) return;
-        finished = true;
-        cleanup();
-        error ? reject(error) : resolve();
-      };
-      const ready = () => finish();
-      const failed = () => finish(new Error('Audio loading failed'));
-      const timer = setTimeout(() => finish(new Error('Audio loading timed out')), timeoutMs);
-
-      element.addEventListener('canplaythrough', ready, { once: true });
-      element.addEventListener('canplay', ready, { once: true });
-      element.addEventListener('error', failed, { once: true });
-
-      // game.js normally sets src before calling preload(), but set it here too
-      // so the readiness check remains self-contained.
-      if (element.getAttribute('src') !== src) element.src = src;
-
-      if (element.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
-        finish();
-        return;
-      }
-
-      element.preload = 'auto';
-      try {
-        element.load();
-      } catch (error) {
-        finish(error);
-      }
-    });
-  }
-
-  async function prepareAudioFiles() {
+  function beginAudioPreparation() {
     if (preparing) return;
     preparing = true;
 
-    const overlay = document.getElementById('audio-loading-overlay');
-    const retry = document.getElementById('audio-loading-retry');
+    const gate = document.getElementById('audio-start-gate');
+    const gateButton = document.getElementById('audio-start-gate-button');
+    const gateText = document.getElementById('audio-start-gate-text');
+    const startButton = document.getElementById('start-btn');
+    const status = document.getElementById('audio-load-status');
     const mainElement = document.getElementById('audio-player');
     const reviewElement = document.getElementById('audio-re-player');
-    const needsReview = hasReviewAudio();
 
-    if (overlay) overlay.style.display = 'flex';
-    if (retry) retry.style.display = 'none';
-    setStatus('audio-loading-title', '音声を準備しています……');
-    setStatus('audio-main-status', '質問の音声をロードしています……');
-
-    const reviewStatus = document.getElementById('audio-review-status');
-    if (reviewStatus) {
-      reviewStatus.style.display = needsReview ? '' : 'none';
-      if (needsReview) reviewStatus.textContent = '答えの音声をロードしています……';
-    }
-
+    // この関数は Commencer の実クリックから直接呼ばれます。
+    // Safari が user activation を認識している間に、AudioContext の resume と
+    // HTMLAudioElement の load を先に発火させます。
+    let resumed = Promise.resolve();
     try {
-      await waitUntilPlayable(mainElement, config.mainAudio);
-      setStatus('audio-main-status', '質問の音声をロードしています……完了');
+      const ctx = getContext();
+      if (ctx.state !== 'running') resumed = ctx.resume();
 
-      if (needsReview) {
-        await waitUntilPlayable(reviewElement, config.reviewAudio);
-        setStatus('audio-review-status', '答えの音声をロードしています……完了');
+      if (mainElement) {
+        mainElement.preload = 'auto';
+        mainElement.load();
       }
-
-      if (overlay) overlay.style.display = 'none';
-
-      // Preserve the original optimization: begin Web Audio decoding of main
-      // after the media files are ready, without blocking the UI.
-      void load('main').catch(() => {});
+      if (hasReviewAudio() && reviewElement) {
+        reviewElement.preload = 'auto';
+        reviewElement.load();
+      }
     } catch (error) {
-      console.error('Audio preparation failed:', error);
-      setStatus('audio-loading-title', '音声を読み込めませんでした');
-      if (retry) retry.style.display = 'inline-block';
-    } finally {
-      preparing = false;
+      resumed = Promise.reject(error);
     }
+
+    // 暗転はクリック直後に解除。学生は学籍番号入力などを進められます。
+    if (gate) gate.style.display = 'none';
+    if (status) status.style.display = 'inline';
+    if (startButton) startButton.style.display = 'none';
+
+    // 実際にゲームが使う Web Audio の全データを取得・デコードしてから
+    // 既存の「スタート」を表示します。
+    const tasks = [resumed, load('main')];
+    if (hasReviewAudio()) tasks.push(load('review'));
+
+    Promise.all(tasks).then(() => {
+      preparing = false;
+      if (status) status.style.display = 'none';
+      if (startButton) startButton.style.display = '';
+    }).catch(error => {
+      console.error('Audio preparation failed:', error);
+      preparing = false;
+      if (status) status.style.display = 'none';
+
+      // 再試行は必ず新しいユーザー操作から始めます。
+      if (gateText) gateText.textContent = '音声を準備できませんでした。もう一度押してください';
+      if (gateButton) gateButton.disabled = false;
+      if (gate) gate.style.display = 'flex';
+    });
   }
 
   function preload() {
-    // 初回
-    void prepareAudioFiles();
-
-    // 5秒おきに、手動ボタンと同じ一行だけを呼ぶ
-    const prepareRetryTimer = setInterval(() => {
-      void prepareAudioFiles();
-    }, 5000);
-
-    // 30秒で自動呼び出しだけ終了。
-    // 以後は従来どおり「もう一度読み込む」ボタンで再試行できる。
-    setTimeout(() => {
-      clearInterval(prepareRetryTimer);
-    }, 30000);
+    // iPhone Safari ではユーザー操作前の音声準備を開始しません。
+    // Commencer のクリックが準備開始のトリガーです。
   }
 
-
+  const gateButton = document.getElementById('audio-start-gate-button');
+  if (gateButton) {
+    gateButton.addEventListener('click', () => {
+      gateButton.disabled = true;
+      beginAudioPreparation();
+    });
+  }
   window.addEventListener('pagehide', stop);
   return Object.freeze({ play, stop, preload });
 })();

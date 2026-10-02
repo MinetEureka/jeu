@@ -6,49 +6,51 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>動詞学習ゲーム</title>
   <link rel="stylesheet" href="./game.css">
-
-  <style>
-    #audio-loading-overlay {
-      position: fixed;
-      inset: 0;
-      z-index: 100000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(0, 0, 0, 0.88);
-      color: #fff;
-    }
-    #audio-loading-box {
-      padding: 24px;
-      line-height: 1.9;
-      font-size: 1.05rem;
-    }
-    #audio-loading-title {
-      margin: 0 0 10px;
-      font-size: 1.2rem;
-      font-weight: bold;
-    }
-    #audio-loading-retry {
-      display: none;
-      margin-top: 12px;
-      padding: 8px 16px;
-      font-size: 1rem;
-    }
-  </style>
   <script>
     document.addEventListener('contextmenu', e => e.preventDefault());
   </script>
+
+  <style>
+    #audio-start-gate {
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.82);
+    }
+    #audio-start-gate-inner {
+      text-align: center;
+      color: #fff;
+      padding: 24px;
+    }
+    #audio-start-gate p {
+      margin: 0 0 16px;
+      font-size: 1.1rem;
+    }
+    #audio-start-gate button {
+      min-width: 150px;
+      min-height: 48px;
+      font-size: 1.1rem;
+      cursor: pointer;
+    }
+    #audio-load-status {
+      display: none;
+      margin-left: 8px;
+      font-size: 0.95em;
+    }
+  </style>
 </head>
 <body>
 
-  <div id="audio-loading-overlay" role="status" aria-live="polite">
-    <div id="audio-loading-box">
-      <p id="audio-loading-title">音声を準備しています……</p>
-      <div id="audio-main-status">質問の音声をロードしています……</div>
-      <div id="audio-review-status">答えの音声をロードしています……</div>
-      <button id="audio-loading-retry" type="button">もう一度読み込む</button>
+  <div id="audio-start-gate" role="dialog" aria-modal="true" aria-labelledby="audio-start-gate-text">
+    <div id="audio-start-gate-inner">
+      <p id="audio-start-gate-text">Appuyer sur commencer</p>
+      <button id="audio-start-gate-button" type="button">Commencer</button>
     </div>
   </div>
+
   <h1>動詞学習ゲーム</h1>
   <div id="intro-image" style="margin-top: 20px;">
     <img src="image/image-00.png" alt="例示画像" style="width:60%; max-width:300px;" />
@@ -56,7 +58,8 @@
   </div>
   <div id="start-section">
     学籍番号: <input type="text" id="student-id" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="off" aria-label="学籍番号の下4桁" />
-    <button id="start-btn" onclick="startGame()">スタート</button>
+    <button id="start-btn" onclick="startGame()" style="display:none">スタート</button>
+    <span id="audio-load-status" aria-live="polite">音声を準備しています…</span>
   </div>
 
   <!-- 予習パート（配置は従来と同じ：学籍番号の下） -->
