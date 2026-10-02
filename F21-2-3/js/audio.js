@@ -204,22 +204,37 @@ window.segmentAudio = (() => {
     const tasks = [
       waitUntilPlayable(mainElement, config.mainAudio)
     ];
-    if (hasReviewAudio()) {
-      tasks.push(waitUntilPlayable(reviewElement, config.reviewAudio));
+
+    // review側は Commencer のユーザー操作中に HTMLAudio の load だけ開始します。
+    // ただし準備完了条件には含めません。
+    if (hasReviewAudio() && reviewElement) {
+      try {
+        if (reviewElement.getAttribute('src') !== config.reviewAudio) {
+          reviewElement.src = config.reviewAudio;
+        }
+        reviewElement.preload = 'auto';
+        reviewElement.load();
+      } catch (_) {}
     }
 
-    // HTTP/HTTPS では、実際のゲームで使う Web Audio の
-    // fetch + decodeAudioData 完了まで「準備中」として待ちます。
+    // HTTP/HTTPS では main の Web Audio バッファだけ
+    // fetch + decodeAudioData 完了まで待ちます。
     // file:// では fetch() が使えないため、HTMLAudio の準備だけを待ちます。
     if (location.protocol === 'http:' || location.protocol === 'https:') {
       tasks.push(load('main'));
-      if (hasReviewAudio()) tasks.push(load('review'));
     }
 
     Promise.all(tasks).then(() => {
       preparing = false;
       if (status) status.style.display = 'none';
       if (startButton) startButton.style.display = '';
+
+      // main の準備が終わった後、review は裏で取得・デコードします。
+      // ゲーム開始を待たせません。
+      if (hasReviewAudio() &&
+          (location.protocol === 'http:' || location.protocol === 'https:')) {
+        void load('review').catch(() => {});
+      }
     }).catch(error => {
       console.error('Audio preparation failed:', error);
       preparing = false;
