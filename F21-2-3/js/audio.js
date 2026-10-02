@@ -204,7 +204,7 @@ window.segmentAudio = (() => {
 
     if (overlay) overlay.style.display = 'flex';
     if (retry) retry.style.display = 'none';
-    setStatus('audio-loading-title', '音声を準備しています……');
+    setStatus('audio-loading-title', '音声を準備中');
     setStatus('audio-main-status', '質問の音声をロードしています……');
 
     const reviewStatus = document.getElementById('audio-review-status');
