@@ -143,52 +143,63 @@ window.segmentAudio = (() => {
       }
 
       let finished = false;
+      let retryTimer = null;
+
       const cleanup = () => {
-        clearTimeout(timer);
-        clearInterval(readyCheck);
+        clearTimeout(timeoutTimer);
+        clearInterval(retryTimer);
         element.removeEventListener('canplaythrough', ready);
         element.removeEventListener('canplay', ready);
         element.removeEventListener('error', failed);
       };
-      const finish = (error) => {
+
+      const finish = error => {
         if (finished) return;
         finished = true;
         cleanup();
         error ? reject(error) : resolve();
       };
+
       const ready = () => finish();
       const failed = () => finish(new Error('Audio loading failed'));
-      const timer = setTimeout(() => finish(new Error('Audio loading timed out')), timeoutMs);
 
-      // iOS Safari may finish preparing the media without delivering the
-      // expected canplay/canplaythrough event to this listener. Re-check the
-      // actual readyState every 5 seconds, equivalent to the successful
-      // manual retry path without restarting the download.
-      const readyCheck = setInterval(() => {
+      const tryLoad = () => {
+        if (finished) return;
+
+        // First check exactly as the manual retry path does: if Safari has
+        // already prepared the media, finish immediately.
         if (element.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
           finish();
+          return;
         }
-      }, 5000);
+
+        // Otherwise repeat the actual loading action used when the user
+        // presses "もう一度読み込む".
+        element.preload = 'auto';
+        if (element.getAttribute('src') !== src) element.src = src;
+
+        try {
+          element.load();
+        } catch (error) {
+          // Do not fail immediately on a retry attempt. Safari may recover on
+          // the next 5-second attempt. The 30-second timeout remains the final
+          // fallback to the manual retry button.
+          console.warn('Audio reload attempt failed:', error);
+        }
+      };
 
       element.addEventListener('canplaythrough', ready, { once: true });
       element.addEventListener('canplay', ready, { once: true });
       element.addEventListener('error', failed, { once: true });
 
-      // game.js normally sets src before calling preload(), but set it here too
-      // so the readiness check remains self-contained.
-      if (element.getAttribute('src') !== src) element.src = src;
+      const timeoutTimer = setTimeout(
+        () => finish(new Error('Audio loading timed out')),
+        timeoutMs
+      );
 
-      if (element.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
-        finish();
-        return;
-      }
-
-      element.preload = 'auto';
-      try {
-        element.load();
-      } catch (error) {
-        finish(error);
-      }
+      // Initial attempt, then repeat the same loading action every 5 seconds.
+      tryLoad();
+      retryTimer = setInterval(tryLoad, 5000);
     });
   }
 
@@ -204,7 +215,7 @@ window.segmentAudio = (() => {
 
     if (overlay) overlay.style.display = 'flex';
     if (retry) retry.style.display = 'none';
-    setStatus('audio-loading-title', '音声を準備中');
+    setStatus('audio-loading-title', '音声の準備中です……');
     setStatus('audio-main-status', '質問の音声をロードしています……');
 
     const reviewStatus = document.getElementById('audio-review-status');
