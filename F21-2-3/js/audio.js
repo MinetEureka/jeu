@@ -208,11 +208,12 @@ window.segmentAudio = (() => {
       tasks.push(waitUntilPlayable(reviewElement, config.reviewAudio));
     }
 
-    // HTTP/HTTPS では Web Audio 用バッファも裏で先読み。
-    // file:// では fetch() が失敗するため、準備完了条件にはしない。
+    // HTTP/HTTPS では、実際のゲームで使う Web Audio の
+    // fetch + decodeAudioData 完了まで「準備中」として待ちます。
+    // file:// では fetch() が使えないため、HTMLAudio の準備だけを待ちます。
     if (location.protocol === 'http:' || location.protocol === 'https:') {
-      void load('main').catch(() => {});
-      if (hasReviewAudio()) void load('review').catch(() => {});
+      tasks.push(load('main'));
+      if (hasReviewAudio()) tasks.push(load('review'));
     }
 
     Promise.all(tasks).then(() => {
