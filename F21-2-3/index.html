@@ -47,7 +47,10 @@
   <div id="audio-start-gate" role="dialog" aria-modal="true" aria-labelledby="audio-start-gate-text">
     <div id="audio-start-gate-inner">
       <p id="audio-start-gate-text">Appuyer sur commencer</p>
-      <button id="audio-start-gate-button" type="button">Commencer</button>
+      <button id="audio-start-gate-button" type="button"
+        onclick="if(window.segmentAudio && window.segmentAudio.prepare){window.segmentAudio.prepare();}else{alert('音声処理を読み込めません。ページを再読み込みしてください。');}">
+        Commencer
+      </button>
     </div>
   </div>
 
@@ -57,9 +60,13 @@
     <p style="font-size: 1.2em; margin-top: 10px;">学籍番号の下4桁を入力してください</p>
   </div>
   <div id="start-section">
-    学籍番号: <input type="text" id="student-id" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="off" aria-label="学籍番号の下4桁" />
-    <button id="start-btn" onclick="startGame()" style="display:none">スタート</button>
-    <span id="audio-load-status" aria-live="polite">音声を準備しています…</span>
+    <div>
+      学籍番号: <input type="text" id="student-id" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="off" aria-label="学籍番号の下4桁" />
+    </div>
+    <div style="margin-top:10px;">
+      <button id="start-btn" onclick="startGame()" style="display:none">スタート</button>
+      <span id="audio-load-status" aria-live="polite">音声を準備しています…</span>
+    </div>
   </div>
 
   <!-- 予習パート（配置は従来と同じ：学籍番号の下） -->
@@ -99,7 +106,7 @@
   <script src="./js/code.js"></script>
   <script src="./js/reponses.js"></script>
   <script src="./js/calc.js"></script>
-  <script src="./js/audio.js"></script>
+  <script src="./js/audio.js?v=20261002-commencer-2"></script>
   <script src="./js/game.js"></script>
 
 

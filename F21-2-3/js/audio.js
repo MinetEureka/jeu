@@ -142,19 +142,26 @@ window.segmentAudio = (() => {
     const mainElement = document.getElementById('audio-player');
     const reviewElement = document.getElementById('audio-re-player');
 
-    // この関数は Commencer の実クリックから直接呼ばれます。
-    // Safari が user activation を認識している間に、AudioContext の resume と
-    // HTMLAudioElement の load を先に発火させます。
+    if (gateButton) gateButton.disabled = true;
+
+    // Commencer の実クリック中に、Safari が必要とする操作をまとめて開始します。
     let resumed = Promise.resolve();
     try {
       const ctx = getContext();
       if (ctx.state !== 'running') resumed = ctx.resume();
 
-      if (mainElement) {
+      if (mainElement && config.mainAudio) {
+        if (mainElement.getAttribute('src') !== config.mainAudio) {
+          mainElement.src = config.mainAudio;
+        }
         mainElement.preload = 'auto';
         mainElement.load();
       }
+
       if (hasReviewAudio() && reviewElement) {
+        if (reviewElement.getAttribute('src') !== config.reviewAudio) {
+          reviewElement.src = config.reviewAudio;
+        }
         reviewElement.preload = 'auto';
         reviewElement.load();
       }
@@ -162,13 +169,12 @@ window.segmentAudio = (() => {
       resumed = Promise.reject(error);
     }
 
-    // 暗転はクリック直後に解除。学生は学籍番号入力などを進められます。
+    // ユーザー操作を取得できたので、暗転はすぐ解除します。
     if (gate) gate.style.display = 'none';
     if (status) status.style.display = 'inline';
     if (startButton) startButton.style.display = 'none';
 
-    // 実際にゲームが使う Web Audio の全データを取得・デコードしてから
-    // 既存の「スタート」を表示します。
+    // 実際のゲームで使う Web Audio の取得＋デコードが終わるまで待ちます。
     const tasks = [resumed, load('main')];
     if (hasReviewAudio()) tasks.push(load('review'));
 
@@ -181,7 +187,7 @@ window.segmentAudio = (() => {
       preparing = false;
       if (status) status.style.display = 'none';
 
-      // 再試行は必ず新しいユーザー操作から始めます。
+      // 失敗した場合は、新しいユーザー操作を取れるようにゲートを戻します。
       if (gateText) gateText.textContent = '音声を準備できませんでした。もう一度押してください';
       if (gateButton) gateButton.disabled = false;
       if (gate) gate.style.display = 'flex';
@@ -189,17 +195,8 @@ window.segmentAudio = (() => {
   }
 
   function preload() {
-    // iPhone Safari ではユーザー操作前の音声準備を開始しません。
-    // Commencer のクリックが準備開始のトリガーです。
-  }
-
-  const gateButton = document.getElementById('audio-start-gate-button');
-  if (gateButton) {
-    gateButton.addEventListener('click', () => {
-      gateButton.disabled = true;
-      beginAudioPreparation();
-    });
+    // ユーザー操作前には音声準備を開始しません。
   }
   window.addEventListener('pagehide', stop);
-  return Object.freeze({ play, stop, preload });
+  return Object.freeze({ play, stop, preload, prepare: beginAudioPreparation });
 })();
