@@ -1,1 +1,0 @@
-window.scoreKey = 35;
