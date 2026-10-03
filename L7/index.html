@@ -9,16 +9,83 @@
   <script>
     document.addEventListener('contextmenu', e => e.preventDefault());
   </script>
+
+  <style>
+    #audio-start-gate {
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.82);
+    }
+    #audio-start-gate-inner {
+      text-align: center;
+      color: #fff;
+      padding: 24px;
+    }
+    #audio-start-gate p {
+      margin: 0 0 16px;
+      font-size: 1.1rem;
+    }
+    #audio-start-gate button {
+      min-width: 150px;
+      min-height: 48px;
+      font-size: 1.1rem;
+      cursor: pointer;
+    }
+    #audio-load-status {
+      display: none;
+      margin-top: 8px;
+      font-size: 0.95em;
+    }
+    #audio-progress-wrap {
+      display: none;
+      width: min(320px, 82vw);
+      height: 10px;
+      margin: 8px auto 0;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.12);
+    }
+    #audio-progress-bar {
+      width: 0%;
+      height: 100%;
+      border-radius: inherit;
+      background: currentColor;
+      transition: width 80ms linear;
+    }
+  </style>
 </head>
 <body>
+
+  <div id="audio-start-gate" role="dialog" aria-modal="true" aria-labelledby="audio-start-gate-text">
+    <div id="audio-start-gate-inner">
+      <p id="audio-start-gate-text">Appuyer sur commencer</p>
+      <button id="audio-start-gate-button" type="button"
+        onclick="if(window.segmentAudio && window.segmentAudio.prepare){window.segmentAudio.prepare();}else{alert('音声処理を読み込めません。ページを再読み込みしてください。');}">
+        Commencer
+      </button>
+    </div>
+  </div>
+
   <h1>動詞学習ゲーム</h1>
   <div id="intro-image" style="margin-top: 20px;">
     <img src="image/image-00.png" alt="例示画像" style="width:60%; max-width:300px;" />
     <p style="font-size: 1.2em; margin-top: 10px;">学籍番号の下4桁を入力してください</p>
   </div>
   <div id="start-section">
-    学籍番号: <input type="text" id="student-id" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="off" aria-label="学籍番号の下4桁" />
-    <button id="start-btn" onclick="startGame()">スタート</button>
+    <div>
+      学籍番号: <input type="text" id="student-id" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="off" aria-label="学籍番号の下4桁" />
+    </div>
+    <div style="margin-top:10px;">
+      <div id="audio-load-status" aria-live="polite">音声を読み込んでいます…</div>
+      <div id="audio-progress-wrap" aria-hidden="true">
+        <div id="audio-progress-bar"></div>
+      </div>
+      <button id="start-btn" onclick="startGame()" style="display:none; margin-top:10px;">スタート</button>
+    </div>
   </div>
 
   <!-- 予習パート（配置は従来と同じ：学籍番号の下） -->
