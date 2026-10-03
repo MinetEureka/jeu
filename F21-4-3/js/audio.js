@@ -129,10 +129,18 @@ window.segmentAudio = (() => {
   }
 
 
+
   let preparing = false;
   let progressFrame = 0;
   let progressStartedAt = 0;
+  let decodeStartedAt = 0;
   let displayedProgress = 0;
+  let progressPhase = 'loading';
+
+  function setStatus(text) {
+    const status = document.getElementById('audio-load-status');
+    if (status) status.textContent = text;
+  }
 
   function setProgress(value) {
     displayedProgress = Math.max(0, Math.min(100, value));
@@ -143,40 +151,46 @@ window.segmentAudio = (() => {
   function startFakeProgress() {
     cancelAnimationFrame(progressFrame);
     progressStartedAt = performance.now();
+    decodeStartedAt = 0;
     displayedProgress = 0;
+    progressPhase = 'loading';
+    setStatus('音声を読み込んでいます…');
     setProgress(0);
 
     const tick = now => {
-      const seconds = (now - progressStartedAt) / 1000;
       let value;
-
-      // 10秒を目安にした表示。5秒で約50%、その後は90%前後で減速します。
-      if (seconds <= 5) {
-        value = seconds * 10;
+      if (progressPhase === 'loading') {
+        const seconds = (now - progressStartedAt) / 1000;
+        value = Math.min(seconds * 10, 50);
       } else {
-        value = 50 + 42 * (1 - Math.exp(-(seconds - 5) / 2.2));
+        const seconds = (now - decodeStartedAt) / 1000;
+        value = 50 + 42 * (1 - Math.exp(-seconds / 2.2));
       }
-
-      setProgress(Math.min(value, 92));
+      setProgress(Math.max(displayedProgress, Math.min(value, 92)));
       progressFrame = requestAnimationFrame(tick);
     };
 
     progressFrame = requestAnimationFrame(tick);
   }
 
+  function beginDecodeStage() {
+    if (progressPhase === 'decoding') return;
+    progressPhase = 'decoding';
+    decodeStartedAt = performance.now();
+    if (displayedProgress < 50) setProgress(50);
+    setStatus('音声を準備しています…');
+  }
+
   function finishProgress() {
     cancelAnimationFrame(progressFrame);
-
     return new Promise(resolve => {
       const start = performance.now();
       const from = displayedProgress;
       const duration = 320;
-
       const tick = now => {
         const t = Math.min(1, (now - start) / duration);
         const eased = 1 - Math.pow(1 - t, 3);
         setProgress(from + (100 - from) * eased);
-
         if (t < 1) {
           progressFrame = requestAnimationFrame(tick);
         } else {
@@ -184,7 +198,6 @@ window.segmentAudio = (() => {
           resolve();
         }
       };
-
       progressFrame = requestAnimationFrame(tick);
     });
   }
@@ -192,7 +205,10 @@ window.segmentAudio = (() => {
   function resetProgress() {
     cancelAnimationFrame(progressFrame);
     progressFrame = 0;
+    progressPhase = 'loading';
+    decodeStartedAt = 0;
     setProgress(0);
+    setStatus('音声を読み込んでいます…');
   }
 
   function waitUntilPlayable(element, src, timeoutMs = 30000) {
@@ -204,7 +220,6 @@ window.segmentAudio = (() => {
 
       let finished = false;
       let timer = null;
-
       const finish = error => {
         if (finished) return;
         finished = true;
@@ -229,10 +244,7 @@ window.segmentAudio = (() => {
         return;
       }
 
-      timer = setTimeout(
-        () => finish(new Error('Audio loading timed out')),
-        timeoutMs
-      );
+      timer = setTimeout(() => finish(new Error('Audio loading timed out')), timeoutMs);
 
       try {
         element.load();
@@ -240,6 +252,28 @@ window.segmentAudio = (() => {
         finish(error);
       }
     });
+  }
+
+  function prepareMainAudioData() {
+    if (!loads.has('main')) {
+      const promise = (async () => {
+        const ctx = getContext();
+        const abort = new AbortController();
+        const timer = setTimeout(() => abort.abort(), 30000);
+        try {
+          const response = await fetch(config.mainAudio, { cache: 'force-cache', signal: abort.signal });
+          if (!response.ok) throw new Error(`Audio HTTP ${response.status}`);
+          const data = await response.arrayBuffer();
+          beginDecodeStage();
+          return await ctx.decodeAudioData(data);
+        } finally {
+          clearTimeout(timer);
+        }
+      })();
+      loads.set('main', promise);
+      promise.catch(() => { if (loads.get('main') === promise) loads.delete('main'); });
+    }
+    return loads.get('main');
   }
 
   function beginAudioPreparation() {
@@ -257,25 +291,19 @@ window.segmentAudio = (() => {
 
     if (gateButton) gateButton.disabled = true;
 
-    // Commencer の実クリック中に Safari の user activation を確保します。
     try {
       const ctx = getContext();
       if (ctx.state !== 'running') void ctx.resume().catch(() => {});
     } catch (_) {}
 
-    // 暗転はすぐ解除。学籍番号入力などを進めながら音声を準備します。
     if (gate) gate.style.display = 'none';
     if (status) status.style.display = 'block';
     if (progressWrap) progressWrap.style.display = 'block';
     if (startButton) startButton.style.display = 'none';
     startFakeProgress();
 
-    const tasks = [
-      waitUntilPlayable(mainElement, config.mainAudio)
-    ];
+    const tasks = [waitUntilPlayable(mainElement, config.mainAudio)];
 
-    // review側は Commencer のユーザー操作中に HTMLAudio の load を開始します。
-    // ただし「スタート」の表示条件には含めません。
     if (reviewElement && typeof config.reviewAudio === 'string' && config.reviewAudio.trim()) {
       try {
         if (reviewElement.getAttribute('src') !== config.reviewAudio) {
@@ -286,10 +314,8 @@ window.segmentAudio = (() => {
       } catch (_) {}
     }
 
-    // HTTP/HTTPSではmainのfetch＋decodeAudioData完了まで待ちます。
-    // file://ではfetchを使わず、HTMLAudioの準備完了でローカル確認できます。
     if (location.protocol === 'http:' || location.protocol === 'https:') {
-      tasks.push(load('main'));
+      tasks.push(prepareMainAudioData());
     }
 
     Promise.all(tasks).then(async () => {
@@ -299,12 +325,10 @@ window.segmentAudio = (() => {
       if (progressWrap) progressWrap.style.display = 'none';
       if (startButton) startButton.style.display = '';
 
-      // main準備後、reviewはゲームを待たせず裏で取得・デコードします。
       if ((location.protocol === 'http:' || location.protocol === 'https:') &&
           typeof config.reviewAudio === 'string' && config.reviewAudio.trim()) {
         void load('review').catch(() => {});
       }
-
     }).catch(error => {
       console.error('Audio preparation failed:', error);
       preparing = false;
@@ -320,6 +344,7 @@ window.segmentAudio = (() => {
   function preload() {
     // ユーザー操作前には音声準備を開始しません。
   }
+
 
   window.addEventListener('pagehide', stop);
   return Object.freeze({ play, stop, preload, prepare: beginAudioPreparation });
