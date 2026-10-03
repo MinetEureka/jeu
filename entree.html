@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>教材を開く</title>
+  <style>
+    body {
+      max-width: 520px;
+      margin: 60px auto;
+      padding: 20px;
+      font-family: sans-serif;
+    }
+
+    input, button {
+      box-sizing: border-box;
+      width: 100%;
+      padding: 14px;
+      margin-top: 12px;
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+  <h1>教材を開く</h1>
+
+  <label for="folder">フォルダ名</label>
+  <input
+    id="folder"
+    type="text"
+    placeholder="例：nombre1-10"
+    autocomplete="off"
+    autofocus
+  >
+
+  <button id="openButton" type="button">開く</button>
+
+  <script>
+    const folderInput = document.getElementById("folder");
+    const openButton = document.getElementById("openButton");
+
+    function openGame() {
+      const folderName = folderInput.value.trim();
+
+      if (!folderName) {
+        alert("フォルダ名を入力してください。");
+        return;
+      }
+
+      const destination =
+        "./" + encodeURIComponent(folderName) + "/index.html";
+
+      window.location.href = destination;
+    }
+
+    openButton.addEventListener("click", openGame);
+
+    folderInput.addEventListener("keydown", event => {
+      if (event.key === "Enter") {
+        openGame();
+      }
+    });
+  </script>
+</body>
+</html>
