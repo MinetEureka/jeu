@@ -1,0 +1,1 @@
+window.scoreKey = 37;

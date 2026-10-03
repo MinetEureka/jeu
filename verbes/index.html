@@ -1,0 +1,158 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>動詞カルタ</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; }
+        .tab { margin: 10px; }
+        .verb-frame, .verb-space, .selected-verb { margin: 10px auto; width: 90%; }
+        .verb-frame { display: none; border: 1px solid #ccc; padding: 10px; }
+        .verb-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; }
+        .verb-img { width: 100%; max-height: 100px; object-fit: contain; border: 3px solid transparent; cursor: pointer; }
+        .selected-img { width: 150px; height: 150px; object-fit: contain; margin: 10px auto; border: 3px solid black; }
+        .hidden { display: none; }
+        .color-a { border-color: red }
+        .color-b { border-color: green}
+        .color-c { border-color: skyblue}
+        .color-d { border-color: gray}
+        .color-e { border-color: yellow}
+    </style>
+</head>
+<body>
+<div class="tab">
+    <h1>動詞カルタ</h1>
+    <button id="verbSelectBtn" onclick="toggleVerbFrame()">動詞選択</button>
+</div>
+    <div id="verbFrame" class="verb-frame">
+        <div>
+            <button onclick="loadVerbs('a')" style="background-color:red">赤</button>
+            <button onclick="loadVerbs('b')" style="background-color:green">緑</button>
+            <button onclick="loadVerbs('c')" style="background-color:skyblue">青</button>
+            <button onclick="loadVerbs('d')" style="background-color:gray">黒</button>
+            <button onclick="loadVerbs('e')" style="background-color:yellow">黄</button>
+            <button onclick="toggleVerbFrame()">閉じる</button>
+        </div>
+        <div id="verbGrid" class="verb-grid"></div>
+    </div>
+    <div id="verbSpace" class="verb-grid"></div>
+    <div>
+        <h3>選択済みの動詞</h3>
+        <button onclick="prevVerb()">←</button>
+        <img id="selectedVerb" class="selected-img hidden">
+        <button onclick="nextVerb()">→</button>
+    </div>
+
+<script>
+    let selectedVerbs = [];
+    let verbHistory = [];
+    let historyIndex = -1;
+    let currentGroup = 'a'; 
+
+function toggleVerbFrame() {
+    const frame = document.getElementById('verbFrame');
+    const btn = document.getElementById('verbSelectBtn'); // 追加
+    frame.style.display = frame.style.display === 'none' ? 'block' : 'none';
+    if (frame.style.display === 'block') {
+        btn.style.display = 'none'; // ボタンを非表示
+        loadVerbs(currentGroup);
+    } else {
+        btn.style.display = ''; // ボタンを再表示
+        updateVerbSpace();
+    }
+}
+    function loadVerbs(group) {
+        currentGroup = group; // 追加：現在のグループを記憶
+        const grid = document.getElementById('verbGrid');
+        grid.innerHTML = '';
+        for (let i = 1; i <= 30; i++) {
+            const img = document.createElement('img');
+            const filename = `verbe-${group}${i}.png`;
+            img.src = filename;
+            img.className = `verb-img color-${group}`;
+            img.onerror = () => img.style.display = 'none';
+            img.onclick = () => toggleSelection(filename, group);
+            if (selectedVerbs.includes(filename)) img.style.opacity = 0.3;
+            grid.appendChild(img);
+        }
+    }
+
+    function toggleSelection(filename, group) {
+        const index = selectedVerbs.indexOf(filename);
+        if (index === -1) {
+            selectedVerbs.push(filename);
+        } else {
+            selectedVerbs.splice(index, 1);
+        }
+        loadVerbs(group);
+        updateVerbSpace();
+    }
+
+    function updateVerbSpace() {
+        const space = document.getElementById('verbSpace');
+        space.innerHTML = '';
+        selectedVerbs.sort();
+        selectedVerbs.forEach(filename => {
+            const img = document.createElement('img');
+            const group = filename[6];
+            img.src = filename;
+            img.className = `verb-img color-${group}`;
+            img.onclick = () => {
+                selectVerb(filename);
+                img.remove(); // 修正：選択されたら削除
+            };
+            space.appendChild(img);
+        });
+    }
+
+    function selectVerb(filename) {
+        const index = selectedVerbs.indexOf(filename);
+        if (index !== -1) {
+            selectedVerbs.splice(index, 1);
+            verbHistory.push(filename);
+            historyIndex = verbHistory.length - 1;
+            showSelectedVerb();
+        }
+    }
+
+    function showSelectedVerb() {
+        const img = document.getElementById('selectedVerb');
+        if (historyIndex >= 0 && historyIndex < verbHistory.length) {
+            const filename = verbHistory[historyIndex];
+            const group = filename[6];
+            img.src = filename;
+            img.className = `selected-img color-${group}`;
+            img.classList.remove('hidden');
+            img.onclick = () => removeFromHistory();
+        } else {
+            img.classList.add('hidden');
+        }
+    }
+
+    function prevVerb() {
+        if (historyIndex > 0) {
+            historyIndex--;
+            showSelectedVerb();
+        }
+    }
+
+    function nextVerb() {
+        if (historyIndex < verbHistory.length - 1) {
+            historyIndex++;
+            showSelectedVerb();
+        }
+    }
+
+    function removeFromHistory() {
+        if (historyIndex >= 0 && historyIndex < verbHistory.length) {
+            const removed = verbHistory.splice(historyIndex, 1)[0];
+            selectedVerbs.push(removed);
+            updateVerbSpace();
+            if (historyIndex >= verbHistory.length) historyIndex--;
+            showSelectedVerb();
+        }
+    }
+</script>
+</body>
+</html>

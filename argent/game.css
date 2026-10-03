@@ -1,0 +1,285 @@
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #2f241b;
+  background: #fff8ec;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  text-align: center;
+  overscroll-behavior: none;
+}
+
+button, input { font: inherit; }
+button { touch-action: manipulation; }
+
+#app { min-height: 100vh; }
+
+#start-screen {
+  width: min(92vw, 620px);
+  margin: 0 auto;
+  padding: 48px 16px 24px;
+}
+
+#start-screen h1 { margin: 0 0 28px; }
+
+#start-section {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+#student-id {
+  width: 7em;
+  padding: 9px 10px;
+  text-align: center;
+  font-size: 18px;
+}
+
+#start-btn,
+#listen-button,
+#pay-button,
+#result button {
+  border: 2px solid rgba(72, 48, 25, 0.35);
+  border-radius: 12px;
+  padding: 9px 16px;
+  background: rgba(255,255,255,0.94);
+  color: #2f241b;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+}
+
+#pay-button {
+  padding-inline: 24px;
+  background: #fff4bf;
+}
+
+#start-btn:active,
+#listen-button:active,
+#pay-button:active,
+.money-source:active,
+.placed-money:active,
+#result button:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+#setup-error {
+  min-height: 1.4em;
+  color: #a12222;
+  font-weight: 700;
+}
+
+#game-screen { min-height: 100vh; }
+
+#game-stage {
+  position: relative;
+  width: 100vw;
+  height: 100dvh;
+  min-height: 620px;
+  overflow: hidden;
+  background-image: url("image/image-11.png");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+#game-topbar {
+  position: absolute;
+  z-index: 10;
+  top: 0;
+  left: 0;
+  right: 0;
+  min-height: 104px;
+  padding: 10px 12px 8px;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.94), rgba(255,255,255,0.72), rgba(255,255,255,0));
+}
+
+#game-info {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin-bottom: 7px;
+  font-weight: 700;
+  text-shadow: 0 1px 0 #fff;
+}
+
+#game-controls {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+#payment-total {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.86);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.10);
+  font-size: clamp(17px, 2.3vw, 24px);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 0 #fff;
+}
+
+#payment-area {
+  position: absolute;
+  z-index: 2;
+  left: 5%;
+  right: 5%;
+  /* image-11 の木製カウンター面だけを支払い範囲にする */
+  top: 38%;
+  bottom: 31%;
+  /* PNGは切らず、JS側で置く座標そのものを中央寄りに制限する */
+  overflow: visible;
+}
+
+#payment-hint {
+  position: absolute;
+  top: 44%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(90%, 520px);
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.54);
+  color: rgba(70, 48, 27, 0.78);
+  font-weight: 700;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+#payment-area.has-money #payment-hint { opacity: 0; }
+
+.placed-money {
+  position: absolute;
+  display: block;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  filter: drop-shadow(0 4px 4px rgba(0,0,0,0.18));
+  -webkit-tap-highlight-color: transparent;
+}
+
+.placed-money img,
+.money-source img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.placed-money.coin { width: clamp(76px, 8.5vw, 118px); aspect-ratio: 1; }
+.placed-money.bill { width: clamp(112px, 13vw, 165px); aspect-ratio: 1.65; }
+
+#money-bank {
+  position: absolute;
+  z-index: 7;
+  left: 2%;
+  right: 2%;
+  bottom: max(6px, env(safe-area-inset-bottom));
+  height: 29%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: clamp(2px, 0.5vh, 7px);
+  pointer-events: none;
+}
+
+.money-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: clamp(8px, 2.2vw, 28px);
+  min-height: 0;
+}
+
+.money-source {
+  flex: 0 0 auto;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  filter: drop-shadow(0 3px 3px rgba(0,0,0,0.16));
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.money-source.coin {
+  width: clamp(58px, 8.2vh, 92px);
+  height: clamp(58px, 8.2vh, 92px);
+}
+
+.money-source.bill {
+  width: clamp(94px, 12.5vh, 142px);
+  height: clamp(56px, 7.5vh, 86px);
+}
+
+#toast {
+  position: fixed;
+  z-index: 40;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  display: none;
+  max-width: 90vw;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(0,0,0,0.78);
+  color: #fff;
+  font-size: 14px;
+}
+
+#result {
+  width: min(96vw, 900px);
+  margin: 0 auto;
+  padding: 24px 10px 40px;
+}
+
+.history-scroll {
+  overflow-x: auto;
+  margin: 20px 0;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 520px;
+  background: #fff;
+  font-size: 0.92em;
+}
+
+th, td {
+  border-bottom: 1px solid #e8e0d7;
+  padding: 7px 6px;
+  text-align: center;
+}
+
+@media (max-width: 600px) {
+  #game-stage { min-height: 560px; }
+  #game-topbar { min-height: 92px; padding-top: 7px; }
+  #game-info { gap: 14px; margin-bottom: 5px; font-size: 14px; }
+  #game-controls { gap: 8px; }
+  #listen-button, #pay-button { padding: 8px 12px; font-size: 15px; }
+  #payment-total { margin-top: 4px; padding: 4px 11px; font-size: 17px; }
+  #payment-area { top: 38%; bottom: 32%; left: 3%; right: 3%; }
+  #payment-hint { font-size: 14px; }
+  #money-bank { height: 30%; left: 1%; right: 1%; }
+  .money-row { gap: clamp(5px, 2vw, 12px); }
+  .money-source.coin { width: clamp(52px, 7.5vh, 76px); height: clamp(52px, 7.5vh, 76px); }
+  .money-source.bill { width: clamp(84px, 11vh, 116px); height: clamp(50px, 6.8vh, 70px); }
+  .placed-money.coin { width: clamp(68px, 18vw, 94px); }
+  .placed-money.bill { width: clamp(102px, 27vw, 138px); }
+}

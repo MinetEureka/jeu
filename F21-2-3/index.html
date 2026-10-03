@@ -1,0 +1,152 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>動詞学習ゲーム</title>
+  <link rel="stylesheet" href="./game.css">
+  <script>
+    document.addEventListener('contextmenu', e => e.preventDefault());
+  </script>
+
+  <style>
+    #audio-start-gate {
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.82);
+    }
+    #audio-start-gate-inner {
+      text-align: center;
+      color: #fff;
+      padding: 24px;
+    }
+    #audio-start-gate p {
+      margin: 0 0 16px;
+      font-size: 1.1rem;
+    }
+    #audio-start-gate button {
+      min-width: 150px;
+      min-height: 48px;
+      font-size: 1.1rem;
+      cursor: pointer;
+    }
+    #audio-load-status {
+      display: none;
+      margin-top: 8px;
+      font-size: 0.95em;
+    }
+    #audio-progress-wrap {
+      display: none;
+      width: min(320px, 82vw);
+      height: 10px;
+      margin: 8px auto 0;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.12);
+    }
+    #audio-progress-bar {
+      width: 0%;
+      height: 100%;
+      border-radius: inherit;
+      background: currentColor;
+      transition: width 80ms linear;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="audio-start-gate" role="dialog" aria-modal="true" aria-labelledby="audio-start-gate-text">
+    <div id="audio-start-gate-inner">
+      <p id="audio-start-gate-text">Appuyer sur commencer</p>
+      <button id="audio-start-gate-button" type="button"
+        onclick="if(window.segmentAudio && window.segmentAudio.prepare){window.segmentAudio.prepare();}else{alert('音声処理を読み込めません。ページを再読み込みしてください。');}">
+        Commencer
+      </button>
+    </div>
+  </div>
+
+  <h1>動詞学習ゲーム</h1>
+  <div id="intro-image" style="margin-top: 20px;">
+    <img src="image/image-00.png" alt="例示画像" style="width:60%; max-width:300px;" />
+    <p style="font-size: 1.2em; margin-top: 10px;">学籍番号の下4桁を入力してください</p>
+  </div>
+  <div id="start-section">
+    <div>
+      学籍番号: <input type="text" id="student-id" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="off" aria-label="学籍番号の下4桁" />
+    </div>
+    <div style="margin-top:10px;">
+      <div id="audio-load-status" aria-live="polite">音声を準備しています…</div>
+      <div id="audio-progress-wrap" aria-hidden="true">
+        <div id="audio-progress-bar"></div>
+      </div>
+      <button id="start-btn" onclick="startGame()" style="display:none; margin-top:10px;">スタート</button>
+    </div>
+  </div>
+
+  <!-- 予習パート（配置は従来と同じ：学籍番号の下） -->
+  <div id="today-section">
+    <div id="today-title">今日の動詞</div>
+    <div id="today-list"></div>
+  </div>
+
+  <div id="game-info" style="display:none">
+    <p id="turn-info"></p>
+    <p id="score-info"></p>
+  </div>
+  <div class="image-grid" id="image-grid"></div>
+  <button id="listen-button" style="display:none" onclick="__replayCurrent()">もう一度聞く</button>
+  <button id="confirm-button" style="display:none" onclick="confirmSelection()">OK</button>
+
+  <!-- (既存) 入力用オーバーレイ -->
+  <div id="overlay">
+    <div id="counter">5</div>
+    <div>je の活用を書いてください</div>
+    <div id="input-section">
+      <input type="text" id="text-input" value="" onkeydown="if(event.key==='Enter' &amp;&amp; !event.isComposing &amp;&amp; !event.repeat){ event.preventDefault(); submitAnswer(); }"/>
+      <button onclick="submitAnswer()">OK</button>
+    </div>
+  </div>
+
+  <div id="result" style="display:none"></div>
+  <div id="toast"></div>
+
+  <!-- フェールセーフ用（基本は使わない） -->
+  <audio id="audio-player" preload="none" playsinline></audio>
+  <audio id="audio-re-player" preload="none" playsinline></audio>
+
+  <!-- 外部JS（パスワード生成など） -->
+  <script src="./js/config.js"></script>
+  <script src="./js/scorekey.js"></script>
+  <script src="./js/code.js"></script>
+  <script src="./js/reponses.js"></script>
+  <script src="./js/calc.js"></script>
+  <script src="./js/audio.js?v=20261002-commencer-2"></script>
+  <script src="./js/game.js"></script>
+
+
+
+  <!-- 予習用オーバーレイ（イラスト / 原形 / 音声4ボタン / 閉じる） -->
+  <div id="preview-layer">
+    <div id="preview-inner">
+      <!-- 1行目：イラスト（クリックで閉じる） -->
+      <div><img id="preview-img" alt="preview" onclick="closePreview()"></div>
+      <!-- 2行目：原形 -->
+      <div id="preview-title"></div>
+      <!-- 3行目：音声再生ボタン4つ（Oui：質問・答え / Non：質問・答え） -->
+      <div class="preview-controls">
+        <button onclick="playAudioSegment(currentPreviewId + 'a')">Oui：質問</button>
+        <button onclick="playReviewSegment(currentPreviewId + 'a')">Oui：答え</button>
+        <button onclick="playAudioSegment(currentPreviewId + 'b')">Non：質問</button>
+        <button onclick="playReviewSegment(currentPreviewId + 'b')">Non：答え</button>
+      </div>
+      <!-- 4行目：閉じる -->
+      <div class="preview-close"><button onclick="closePreview()">閉じる</button></div>
+    </div>
+  </div>
+</body>
+</html>

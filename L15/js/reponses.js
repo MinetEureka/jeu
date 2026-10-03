@@ -1,0 +1,22 @@
+const maxVerbe = 19;
+window.responses = Object.freeze({
+"01": "aimer",                 "01a": "j'aime",               "01b": "je n'aime pas",
+"02": "avoir (chaud)",         "02a": "j'ai",                 "02b": "je n'ai pas",
+"03": "avoir (froid)",         "03a": "j'ai",                 "03b": "je n'ai pas",
+"04": "avoir (mal)",           "04a": "j'ai",                 "04b": "je n'ai pas",
+"05": "avoir (sommeil)",       "05a": "j'ai",                 "05b": "je n'ai pas",
+"06": "boire",                 "06a": "je bois",              "06b": "je ne bois pas",
+"07": "chanter",               "07a": "je chante",            "07b": "je ne chante pas",
+"08": "cuisiner",              "08a": "je cuisine",           "08b": "je ne cuisine pas",
+"09": "danser",                "09a": "je danse",             "09b": "je ne danse pas",
+"10": "dessiner",              "10a": "je dessine",           "10b": "je ne dessine pas",
+"11": "être (en forme)",       "11a": "je suis",              "11b": "je ne suis pas",
+"12": "être (fatigué)",        "12a": "je suis",              "12b": "je ne suis pas",
+"13": "être (malade)",         "13a": "je suis",              "13b": "je ne suis pas",
+"14": "étudier",               "14a": "j'étudie",             "14b": "je n'étudie pas",
+"15": "fumer",                 "15a": "je fume",              "15b": "je ne fume pas",
+"16": "habiter",               "16a": "j'habite",             "16b": "je n'habite pas",
+"17": "parler",                "17a": "je parle",             "17b": "je ne parle pas",
+"18": "travailler",            "18a": "je travaille",         "18b": "je ne travaille pas",
+"19": "voyager",               "19a": "je voyage",            "19b": "je ne voyage pas",
+});

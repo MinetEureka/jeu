@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>金額聞き取りゲーム</title>
+  <link rel="stylesheet" href="./game.css">
+  <script>
+    document.addEventListener('contextmenu', e => e.preventDefault());
+  </script>
+</head>
+<body>
+  <main id="app">
+    <section id="start-screen">
+      <h1>金額聞き取りゲーム</h1>
+      <p>学籍番号の下4桁を入力してください</p>
+      <div id="start-section">
+        <label for="student-id">学籍番号:</label>
+        <input
+          type="text"
+          id="student-id"
+          maxlength="4"
+          inputmode="numeric"
+          pattern="[0-9]{4}"
+          autocomplete="off"
+          aria-label="学籍番号の下4桁"
+        />
+        <button id="start-btn" type="button" onclick="startGame()">スタート</button>
+      </div>
+      <p id="setup-error" role="alert"></p>
+    </section>
+
+    <section id="game-screen" style="display:none">
+      <div id="game-stage">
+        <div id="game-topbar">
+          <div id="game-info">
+            <span id="turn-info"></span>
+            <span id="score-info"></span>
+          </div>
+          <div id="game-controls">
+            <button id="listen-button" type="button" onclick="__replayCurrent()">もう一度聞く</button>
+            <button id="pay-button" type="button" onclick="submitPayment()">支払う</button>
+          </div>
+          <div id="payment-total" aria-live="polite">現在：0,00 €</div>
+        </div>
+
+        <div id="payment-area" aria-label="支払うお金を置く場所">
+          <div id="payment-hint">下のお金をタップして支払ってください<br><small>置いたお金をタップすると戻せます</small></div>
+        </div>
+
+        <div id="money-bank" aria-label="使えるお金">
+          <div class="money-row">
+            <button class="money-source bill" type="button" data-image="10" data-value="1000" data-label="10€" aria-label="10ユーロを追加"><img src="image/image-10.png" alt="10€"></button>
+            <button class="money-source bill" type="button" data-image="9" data-value="500" data-label="5€" aria-label="5ユーロを追加"><img src="image/image-9.png" alt="5€"></button>
+            <button class="money-source coin" type="button" data-image="8" data-value="200" data-label="2€" aria-label="2ユーロを追加"><img src="image/image-8.png" alt="2€"></button>
+            <button class="money-source coin" type="button" data-image="7" data-value="100" data-label="1€" aria-label="1ユーロを追加"><img src="image/image-7.png" alt="1€"></button>
+          </div>
+          <div class="money-row">
+            <button class="money-source coin" type="button" data-image="6" data-value="50" data-label="50c" aria-label="50センチームを追加"><img src="image/image-6.png" alt="50c"></button>
+            <button class="money-source coin" type="button" data-image="5" data-value="20" data-label="20c" aria-label="20センチームを追加"><img src="image/image-5.png" alt="20c"></button>
+            <button class="money-source coin" type="button" data-image="4" data-value="10" data-label="10c" aria-label="10センチームを追加"><img src="image/image-4.png" alt="10c"></button>
+          </div>
+          <div class="money-row">
+            <button class="money-source coin" type="button" data-image="3" data-value="5" data-label="5c" aria-label="5センチームを追加"><img src="image/image-3.png" alt="5c"></button>
+            <button class="money-source coin" type="button" data-image="2" data-value="2" data-label="2c" aria-label="2センチームを追加"><img src="image/image-2.png" alt="2c"></button>
+            <button class="money-source coin" type="button" data-image="1" data-value="1" data-label="1c" aria-label="1センチームを追加"><img src="image/image-1.png" alt="1c"></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="result" style="display:none"></section>
+    <div id="toast" role="status" aria-live="polite"></div>
+  </main>
+
+  <!-- Web Audioが使えない場合のフェールセーフ -->
+  <audio id="audio-player" preload="none" playsinline></audio>
+
+  <!-- 外部JS（パスワード生成など） -->
+  <script src="./js/config.js"></script>
+  <script src="./js/scorekey.js"></script>
+  <script src="./js/code.js"></script>
+  <script src="./js/reponses.js"></script>
+  <script src="./js/calc.js"></script>
+  <script src="./js/audio.js"></script>
+  <script src="./js/game.js"></script>
+</body>
+</html>

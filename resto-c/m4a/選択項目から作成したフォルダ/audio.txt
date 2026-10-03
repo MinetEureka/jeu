@@ -1,0 +1,15 @@
+Bonjour, des escargots et un steak, s'il vous plaît.
+Bonjour? Une salade et un poulet, s'il vous plaît.
+Bonsoir? Des escargots et un saumon, s'il vous plaît.
+Bonsoir, Une salade et un steak, s'il vous plaît.
+Bonjour? Des escargots et un poulet, s'il vous plaît.
+Bonsoir? Une salade et un saumon, s'il vous plaît.
+Bonjour? Un steak et un verre d'eau, s'il vous plaît ?
+Bonsoir?, Un poulet et une carafe de vin, s'il vous plaît.
+Bonjour? Un saumon et une bouteille de jus d'orange, s'il vous plaît ?
+Bonsoir, un steak et une carafe de jus d'orange, s'il vous plaît.
+Bonjour? Un poulet et une bouteille d'eau, s'il vous plaît ?
+Bonsoir? Un saumon et un verre de vin, s'il vous plaît.
+Bonjour Un steak, s'il vous plaît ?
+Bonjour? Un poulet, s'il vous plaît ?
+Bonsoir? Un saumon, s'il vous plaît ? 

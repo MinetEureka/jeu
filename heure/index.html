@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>時刻の聞き取りゲーム</title>
+<link rel="stylesheet" href="game.css">
+<script>
+  document.addEventListener('contextmenu', e => e.preventDefault());
+</script>
+
+</head>
+<body>
+<h1>時刻の聞き取りゲーム</h1>
+<div id="intro-image" style="margin-top: 20px;">
+  <img src="image/image-00.png" alt="例示画像" style="width:60%; max-width:300px;">
+  <p style="font-size: 1.2em; margin-top: 10px;">学籍番号の下4桁を入力してください</p>
+</div>
+<div id="start-section">
+  学籍番号（下4桁）: <input type="text" id="student-id" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="off" />
+  <button id="start-btn" onclick="startGame()">スタート</button>
+</div>
+<div id="today-section">
+  <div id="today-title">練習しよう</div>
+  <div id="today-list"></div>
+</div>
+<div id="game-info" style="display:none;">
+  <p id="turn-info"></p>
+  <p id="score-info"></p>
+</div>
+<div class="image-grid" id="image-grid"></div>
+<button id="listen-button" style="display:none;" onclick="playAudioSegment(currentAudioId)">もう一度聞く</button>
+<div id="result" style="display:none;"></div>
+<!-- Web Audioが利用できない場合の代替再生要素 -->
+<audio id="audio-player" preload="metadata"></audio>
+<div id="toast" role="status" hidden></div>
+<script src="js/config.js"></script>
+<script src="js/reponses.js"></script>
+<script src="js/scorekey.js"></script>
+<script src="js/code.js"></script>
+<script src="js/calc.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
