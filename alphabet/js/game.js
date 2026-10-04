@@ -83,13 +83,16 @@ function pickChoices(correct){
   return [...set,...pool.slice(0,Math.max(0,target-set.size))];
 }
 
-function nextTurn(){
-  window.segmentAudio.stop(); phase='choosing';
-  turn++; turnLocked=false; selectedImage="";
+function nextTurn(preserveAudio=false, keepLocked=false){
+  if (!preserveAudio) window.segmentAudio.stop();
+  phase='choosing';
+  turn++; turnLocked=keepLocked; selectedImage="";
   document.getElementById('turn-info').innerText = `${turn}ターン目`;
   document.getElementById('score-info').innerText = `スコア：${score}/${config.rounds}`;
   document.getElementById('image-grid').innerHTML='';
-  document.getElementById('listen-button').style.display='none';
+  const listenButton = document.getElementById('listen-button');
+  listenButton.style.display='none';
+  listenButton.disabled = keepLocked;
   correctImage = pickCorrectId();
   currentAudioId = correctImage;
   const indices = pickChoices(correctImage);
@@ -146,13 +149,24 @@ function confirmSelection(triggerNextByGesture=false){
     console.error('Reaction audio failed:', error);
   });
 
-  setTimeout(() => {
-    if (turn < config.rounds) {
-      nextTurn();
-    } else {
+  if (turn < config.rounds) {
+    // 次の問題画面はすぐ表示します。
+    // リアクション音を止めないため preserveAudio=true、
+    // 問題音声開始までは誤操作防止で keepLocked=true にします。
+    nextTurn(true, true);
+
+    setTimeout(() => {
+      turnLocked = false;
+      const listenButton = document.getElementById('listen-button');
+      if (listenButton) listenButton.disabled = false;
+      playAudioSegment(currentAudioId);
+    }, 2000);
+  } else {
+    // 最終問題だけはリアクション音を2秒聞いてから結果画面へ。
+    setTimeout(() => {
       endGame();
-    }
-  }, 2000);
+    }, 2000);
+  }
 }
 
 function endGame(){

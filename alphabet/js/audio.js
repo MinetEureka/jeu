@@ -434,9 +434,21 @@ window.segmentAudio = (() => {
     startFakeProgress();
 
     const tasks = [
-      waitUntilPlayable(mainElement, config.mainAudio),
-      waitUntilPlayable(reactionElement, REACTION_AUDIO)
+      waitUntilPlayable(mainElement, config.mainAudio)
     ];
+
+    // reaction.m4a はフォールバック用HTMLAudioもユーザー操作中に準備しますが、
+    // iOSでは canplay 到達をスタート条件にはしません。
+    // 実際の必須条件は下の Web Audio fetch + decode 完了です。
+    if (reactionElement) {
+      try {
+        if (reactionElement.getAttribute('src') !== REACTION_AUDIO) {
+          reactionElement.src = REACTION_AUDIO;
+        }
+        reactionElement.preload = 'auto';
+        reactionElement.load();
+      } catch (_) {}
+    }
 
     if (reviewElement && typeof config.reviewAudio === 'string' && config.reviewAudio.trim()) {
       try {
@@ -449,7 +461,11 @@ window.segmentAudio = (() => {
     }
 
     if (location.protocol === 'http:' || location.protocol === 'https:') {
+      // GitHub Pages / smartphone: main + reaction の fetch と decode 完了を必須にします。
       tasks.push(prepareStartupAudioData());
+    } else {
+      // file:// のローカル確認では fetch が使えないため、HTMLAudio 側で reaction を確認します。
+      tasks.push(waitUntilPlayable(reactionElement, REACTION_AUDIO));
     }
 
     Promise.all(tasks).then(async () => {
