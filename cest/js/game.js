@@ -6,6 +6,7 @@ const maxCards = config.maxCards ?? (typeof maxVerbe !== 'undefined' ? maxVerbe 
 const suffixes = ['a', 'b', 'c', 'd'];
 
 let phase = 'idle';
+let reactionUntil = 0;
 let studentId = '';
 let turn = 0;
 let score = 0;
@@ -307,12 +308,12 @@ function startTimer() {
   countdown = setInterval(update, 100);
 }
 
-function nextTurn() {
+function nextTurn(preserveAudio = false, keepLocked = false) {
   clearInterval(countdown);
-  window.segmentAudio.stop();
+  if (!preserveAudio) window.segmentAudio.stop();
 
   turn++;
-  phase = 'answering';
+  phase = keepLocked ? 'transition' : 'answering';
   resetControls();
 
   baseId = randomBaseId();
@@ -340,7 +341,30 @@ function nextTurn() {
 
   renderImages();
 
+  if (keepLocked) {
+    document.getElementById('yes-btn').disabled = true;
+    document.getElementById('no-btn').disabled = true;
+    document.getElementById('text-input').disabled = true;
+    document.getElementById('ok-btn').disabled = true;
+  } else {
+    playQuestion(currentQuestionId);
+  }
+}
+
+function activateCurrentTurn() {
+  if (phase !== 'transition') return;
+  phase = 'answering';
+  document.getElementById('yes-btn').disabled = false;
+  document.getElementById('no-btn').disabled = false;
+  document.getElementById('text-input').disabled = true;
+  document.getElementById('ok-btn').disabled = true;
   playQuestion(currentQuestionId);
+}
+
+function activateAfterReaction() {
+  const delay = Math.max(0, reactionUntil - Date.now());
+  if (delay === 0) activateCurrentTurn();
+  else setTimeout(activateCurrentTurn, delay);
 }
 
 
@@ -390,46 +414,49 @@ function finalizeAnswer(timedOut, autoAdvance = false) {
     isCorrect
   });
 
-  document.getElementById('score-info').textContent =
-    `スコア：${score}`;
-
+  document.getElementById('score-info').textContent = `スコア：${score}`;
   document.getElementById('yes-btn').disabled = true;
   document.getElementById('no-btn').disabled = true;
   document.getElementById('text-input').disabled = true;
   document.getElementById('ok-btn').disabled = true;
-
   document.getElementById('counter').textContent = '';
   document.getElementById('timer-bar').style.transform = 'scaleX(0)';
 
   const next = document.getElementById('next-btn');
+  next.style.display = 'none';
+
+  reactionUntil = Date.now() + 2000;
+  void window.segmentAudio.playReaction(isCorrect).catch(error => {
+    console.error('Reaction audio failed:', error);
+  });
 
   if (autoAdvance) {
-    // ENTER / OK で送信できた場合は「次へ」を挟まない。
-    // 送信操作そのものを次問の質問音声再生トリガーにします。
-    next.style.display = 'none';
-
     if (history.length >= config.rounds) {
-      endGame();
+      setTimeout(() => endGame(), 2000);
     } else {
-      nextTurn();
+      // 次問を即表示し、リアクション終了後に質問音声と操作を開始します。
+      nextTurn(true, true);
+      activateAfterReaction();
     }
     return;
   }
 
-  // タイムアウト時だけ、次問の音声再生にユーザー操作が必要なので
-  // 「次へ / 結果を見る」を表示します。
+  // タイムアウト時の「次へ」はリアクションを待たずに出します。
   next.style.display = 'inline-block';
-  next.textContent =
-    history.length >= config.rounds ? '結果を見る' : '次へ';
+  next.textContent = history.length >= config.rounds ? '結果を見る' : '次へ';
 }
 
 function goNext() {
   if (phase !== 'locked') return;
 
+  const delay = Math.max(0, reactionUntil - Date.now());
+
   if (history.length >= config.rounds) {
-    endGame();
+    if (delay === 0) endGame();
+    else setTimeout(() => endGame(), delay);
   } else {
-    nextTurn();
+    nextTurn(true, true);
+    activateAfterReaction();
   }
 }
 

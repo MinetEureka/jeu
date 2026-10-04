@@ -66,7 +66,17 @@
     background: currentColor;
     transition: width 80ms linear;
   }
-</style>
+
+    #sound-credit {
+      margin: 28px auto 14px;
+      padding: 0 12px;
+      max-width: 720px;
+      text-align: center;
+      font-size: 0.75rem;
+      line-height: 1.6;
+      opacity: 0.72;
+    }
+  </style>
 
 </head>
 <body>
@@ -127,6 +137,13 @@
   <!-- フェールセーフ用（基本は使わない） -->
   <audio id="audio-player" preload="none" playsinline></audio>
   <audio id="audio-re-player" preload="none" playsinline></audio>
+  <audio id="audio-reaction-player" preload="none" playsinline></audio>
+
+  <div id="sound-credit">
+    効果音：On-Jin ～音人～<br>
+    使用音源の二次配布・無断利用を禁止します。
+  </div>
+
 
   <!-- 外部JS（パスワード生成など） -->
   <script src="./js/config.js"></script>

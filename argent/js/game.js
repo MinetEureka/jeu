@@ -309,8 +309,8 @@ function startGame() {
   nextTurn();
 }
 
-function nextTurn() {
-  window.segmentAudio.stop();
+function nextTurn(preserveAudio = false, keepLocked = false) {
+  if (!preserveAudio) window.segmentAudio.stop();
   clearPaymentArea();
 
   if (turn >= config.rounds) {
@@ -318,17 +318,17 @@ function nextTurn() {
     return;
   }
 
-  phase = 'choosing';
+  phase = keepLocked ? 'transition' : 'choosing';
   currentAudioId = questionDeck[turn];
   currentCorrectCents = responseToCents(getRawResponse(currentAudioId));
   turn++;
 
   document.getElementById('turn-info').textContent = `${turn}/${config.rounds}問目`;
   document.getElementById('score-info').textContent = `スコア：${score}/${config.rounds}`;
-  document.getElementById('pay-button').disabled = false;
-  document.getElementById('listen-button').disabled = false;
+  document.getElementById('pay-button').disabled = keepLocked;
+  document.getElementById('listen-button').disabled = keepLocked;
 
-  playAudioSegment(currentAudioId);
+  if (!keepLocked) playAudioSegment(currentAudioId);
 }
 
 function submitPayment() {
@@ -352,10 +352,24 @@ function submitPayment() {
 
   document.getElementById('score-info').textContent = `スコア：${score}/${config.rounds}`;
 
+  void window.segmentAudio.playReaction(isCorrect).catch(error => {
+    console.error('Reaction audio failed:', error);
+  });
+
   if (history.length < config.rounds) {
-    nextTurn();
+    // 次の問題をすぐ表示。2秒間は支払い操作を受け付けません。
+    nextTurn(true, true);
+
+    setTimeout(() => {
+      phase = 'choosing';
+      document.getElementById('pay-button').disabled = false;
+      document.getElementById('listen-button').disabled = false;
+      playAudioSegment(currentAudioId);
+    }, 2000);
   } else {
-    endGame();
+    setTimeout(() => {
+      endGame();
+    }, 2000);
   }
 }
 

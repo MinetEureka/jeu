@@ -21,6 +21,7 @@ const escapeHTML = value =>
   })[char]);
 
 let phase = "idle";
+let reactionUntil = 0;
 let turn = 0;
 let score = 0;
 let studentId = "";
@@ -240,16 +241,16 @@ function startGame() {
   nextTurn();
 }
 
-function nextTurn() {
+function nextTurn(preserveAudio = false, keepLocked = false) {
   cancelAnimationFrame(timerFrame);
-  window.segmentAudio.stop();
+  if (!preserveAudio) window.segmentAudio.stop();
 
   if (orderIndex >= questionOrder.length) {
     endGame();
     return;
   }
 
-  phase = "answering";
+  phase = keepLocked ? "transition" : "answering";
   turn++;
   currentImage = questionOrder[orderIndex++];
   correctAnswer = normalizeAnswer(responses[currentImage]);
@@ -272,11 +273,24 @@ function nextTurn() {
   image.alt = `問題 ${currentImage}`;
 
   input.value = "";
-  input.disabled = false;
+  input.disabled = keepLocked;
   action.textContent = "OK";
+  action.disabled = keepLocked;
   timeoutMessage.hidden = true;
   progress.style.transform = "scaleX(1)";
   overlay.style.display = "flex";
+
+  if (!keepLocked) activateCurrentTurn();
+}
+
+function activateCurrentTurn() {
+  if (phase !== "transition" && phase !== "answering") return;
+
+  phase = "answering";
+  const input = document.getElementById("text-input");
+  const action = document.getElementById("action-button");
+  input.disabled = false;
+  action.disabled = false;
 
   answerDeadline = Date.now() + config.answerSeconds * 1000;
 
@@ -286,8 +300,14 @@ function nextTurn() {
     input.focus();
   }
 
-  // 重要：本番では音声再生を一切行わない。
+  // 本番では問題音声を再生しないため、リアクション終了後に回答時間だけ開始します。
   updateTimerBar();
+}
+
+function activateAfterReaction() {
+  const delay = Math.max(0, reactionUntil - Date.now());
+  if (delay === 0) activateCurrentTurn();
+  else setTimeout(activateCurrentTurn, delay);
 }
 
 function updateTimerBar() {
@@ -344,12 +364,22 @@ function submitAnswer() {
   cancelAnimationFrame(timerFrame);
 
   const input = document.getElementById("text-input");
-  makeHistoryEntry(input.value, false);
+  const action = document.getElementById("action-button");
+  input.disabled = true;
+  action.disabled = true;
+
+  const entry = makeHistoryEntry(input.value, false);
+  reactionUntil = Date.now() + 2000;
+  void window.segmentAudio.playReaction(entry.isCorrect).catch(error => {
+    console.error('Reaction audio failed:', error);
+  });
 
   if (history.length >= config.rounds) {
-    endGame();
+    setTimeout(() => endGame(), 2000);
   } else {
-    nextTurn();
+    // 次問はすぐ表示するが、回答時間はリアクション終了後に開始します。
+    nextTurn(true, true);
+    activateAfterReaction();
   }
 }
 
@@ -364,24 +394,34 @@ function forceTimeout() {
   const timeoutMessage = document.getElementById("timeout-message");
   const progress = document.getElementById("timer-progress");
 
-  // 0秒時点で入力欄に存在する内容を強制確定。
-  makeHistoryEntry(input.value, true);
+  const entry = makeHistoryEntry(input.value, true);
 
   input.disabled = true;
   input.blur();
   progress.style.transform = "scaleX(0)";
   timeoutMessage.hidden = false;
-  action.textContent =
-    history.length >= config.rounds ? "結果へ" : "次へ";
+
+  reactionUntil = Date.now() + 2000;
+  void window.segmentAudio.playReaction(entry.isCorrect).catch(error => {
+    console.error('Reaction audio failed:', error);
+  });
+
+  // リアクション音のために「次へ」を待たせません。
+  action.textContent = history.length >= config.rounds ? "結果へ" : "次へ";
+  action.disabled = false;
 }
 
 function goNext() {
   if (phase !== "timedout") return;
 
+  const delay = Math.max(0, reactionUntil - Date.now());
+
   if (history.length >= config.rounds) {
-    endGame();
+    if (delay === 0) endGame();
+    else setTimeout(() => endGame(), delay);
   } else {
-    nextTurn();
+    nextTurn(true, true);
+    activateAfterReaction();
   }
 }
 

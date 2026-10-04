@@ -116,16 +116,18 @@
       nextTurn();
     }
 
-    function nextTurn(){
+    function nextTurn(preserveAudio=false, keepLocked=false){
       clearInterval(countdown);
-      window.segmentAudio.stop();
-      phase = 'choosing';
+      if (!preserveAudio) window.segmentAudio.stop();
+      phase = keepLocked ? 'transition' : 'choosing';
       selectedImage=''; correctAnswer=''; correctImage=''; currentAudioId='';
       turn++;
       document.getElementById('turn-info').innerText = `${turn}ターン目`;
       document.getElementById('score-info').innerText = `スコア：${score}/${config.rounds}`;
       document.getElementById('image-grid').innerHTML='';
-      document.getElementById('listen-button').style.display='none';
+      const listenButton = document.getElementById('listen-button');
+      listenButton.style.display='none';
+      listenButton.disabled = keepLocked;
       document.getElementById('confirm-button').style.display='none';
 
       const indices = Array.from({length: maxCards}, (_, i) => String(i + 1).padStart(2, '0'));
@@ -149,7 +151,7 @@
       });
       document.getElementById('listen-button').style.display='inline';
       document.getElementById('image-grid').style.display='grid';
-      playAudioSegment(currentAudioId);
+      if (!keepLocked) playAudioSegment(currentAudioId);
     }
     function selectImage(idx){
       if (phase !== 'choosing') return;
@@ -169,6 +171,12 @@
       document.querySelectorAll('.image-button').forEach(div => div.onclick = null);
       document.getElementById('confirm-button').style.display = 'none';
       document.getElementById('overlay').style.display = 'flex';
+      const submitButton = document.querySelector('#input-section button');
+      if (submitButton) submitButton.style.display = '';
+      const answerInput = document.getElementById('text-input');
+      if (answerInput) answerInput.disabled = false;
+      const answerCounter = document.getElementById('counter');
+      if (answerCounter) answerCounter.style.visibility = '';
       lockZoom();
       const counterEl = document.getElementById('counter');
       const inputEl = document.getElementById('text-input');
@@ -200,17 +208,44 @@
       if (phase !== 'answering') return;
       phase = 'submitting';
       clearInterval(countdown);
+
       const overlay = document.getElementById('overlay');
       const inputEl = document.getElementById('text-input');
+      const submitButton = document.querySelector('#input-section button');
+      const counterEl = document.getElementById('counter');
       let input = normalizeAnswer(inputEl.value || '');
-      overlay.style.display='none';
-      unlockZoom();
-      history.push({ turn, image: correctImage, chosenImage: selectedImage, audioId: currentAudioId, correct: correctAnswer, user: input, isCorrect: (selectedImage===correctImage && input===correctAnswer) });
-      if(selectedImage===correctImage && input===correctAnswer) score++;
+
+      inputEl.disabled = true;
+      if (submitButton) submitButton.style.display = 'none';
+      if (counterEl) counterEl.style.visibility = 'hidden';
+
+      const isCorrect = (selectedImage===correctImage && input===correctAnswer);
+      history.push({ turn, image: correctImage, chosenImage: selectedImage, audioId: currentAudioId, correct: correctAnswer, user: input, isCorrect });
+      if(isCorrect) score++;
+
+      void window.segmentAudio.playReaction(isCorrect).catch(error => {
+        console.error('Reaction audio failed:', error);
+      });
+
       if(history.length < config.rounds){
-        nextTurn();
+        // 次問は即表示。リアクション中の2秒だけ選択操作を止めます。
+        overlay.style.display = 'none';
+        unlockZoom();
+        nextTurn(true, true);
+
+        setTimeout(() => {
+          phase = 'choosing';
+          const listenButton = document.getElementById('listen-button');
+          if (listenButton) listenButton.disabled = false;
+          playAudioSegment(currentAudioId);
+        }, 2000);
       } else {
-        endGame();
+        // 最終問題はリアクション音を聞き切ってから結果へ。
+        setTimeout(() => {
+          overlay.style.display = 'none';
+          unlockZoom();
+          endGame();
+        }, 2000);
       }
     }
     function recomputeScoreFromHistory(){

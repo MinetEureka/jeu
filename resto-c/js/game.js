@@ -238,11 +238,11 @@ function pickChoices(questionId, corrects) {
   return [...set, ...pool.slice(0, Math.max(0, target - set.size))].slice(0, target);
 }
 
-function nextTurn() {
-  window.segmentAudio.stop();
+function nextTurn(preserveAudio = false, keepLocked = false) {
+  if (!preserveAudio) window.segmentAudio.stop();
   phase = 'choosing';
   turn++;
-  turnLocked = false;
+  turnLocked = keepLocked;
   selectedImages = [];
 
   document.getElementById('turn-info').innerText = `${turn}ターン目`;
@@ -252,7 +252,9 @@ function nextTurn() {
   grid.innerHTML = '';
   grid.style.display = 'grid';
 
-  document.getElementById('listen-button').style.display = 'none';
+  const listenButton = document.getElementById('listen-button');
+  listenButton.style.display = 'none';
+  listenButton.disabled = keepLocked;
   const confirm = ensureConfirmButton();
   confirm.style.display = 'inline-block';
   confirm.disabled = true;
@@ -335,6 +337,8 @@ function confirmSelection(triggerNextByGesture = false) {
   phase = 'submitting';
   document.querySelectorAll('.image-button').forEach(div => div.onclick = null);
   ensureConfirmButton().disabled = true;
+  const listenButton = document.getElementById('listen-button');
+  if (listenButton) listenButton.disabled = true;
 
   const chosen = [...selectedImages];
   const correct = [...correctImages];
@@ -351,13 +355,23 @@ function confirmSelection(triggerNextByGesture = false) {
   if (isCorrect) score++;
   document.getElementById('score-info').innerText = `スコア：${score}/${config.rounds}`;
 
+  void window.segmentAudio.playReaction(isCorrect).catch(error => {
+    console.error('Reaction audio failed:', error);
+  });
+
   if (turn < config.rounds) {
-    nextTurn();
-    // 「決定」ボタンのクリックというユーザー操作の中で次問音声を再生し、
-    // iOS等の自動再生制限に引っかかりにくくします。
-    if (triggerNextByGesture) playAudioSegment(currentAudioId);
+    nextTurn(true, true);
+
+    setTimeout(() => {
+      turnLocked = false;
+      const listenButton = document.getElementById('listen-button');
+      if (listenButton) listenButton.disabled = false;
+      playAudioSegment(currentAudioId);
+    }, 2000);
   } else {
-    endGame();
+    setTimeout(() => {
+      endGame();
+    }, 2000);
   }
 }
 

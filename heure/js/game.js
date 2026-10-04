@@ -82,13 +82,16 @@ function pickChoices(correct){
   return [...set,...pool.slice(0,Math.max(0,target-set.size))];
 }
 
-function nextTurn(){
-  window.segmentAudio.stop(); phase='choosing';
-  turn++; turnLocked=false; selectedImage="";
+function nextTurn(preserveAudio=false, keepLocked=false){
+  if (!preserveAudio) window.segmentAudio.stop();
+  phase='choosing';
+  turn++; turnLocked=keepLocked; selectedImage="";
   document.getElementById('turn-info').innerText = `${turn}ターン目`;
   document.getElementById('score-info').innerText = `スコア：${score}/${config.rounds}`;
   document.getElementById('image-grid').innerHTML='';
-  document.getElementById('listen-button').style.display='none';
+  const listenButton = document.getElementById('listen-button');
+  listenButton.style.display='none';
+  listenButton.disabled = keepLocked;
   correctImage = pickCorrectId();
   currentAudioId = correctImage;
   const indices = pickChoices(correctImage);
@@ -122,8 +125,13 @@ function selectImage(idx){
   if (i>=0) btns[i].classList.add('selected');
 }
 function confirmSelection(triggerNextByGesture=false){
-  if (phase!=='choosing' || turnLocked || !selectedImage) return; turnLocked=true; phase='submitting';
+  if (phase!=='choosing' || turnLocked || !selectedImage) return;
+  turnLocked=true;
+  phase='submitting';
   document.querySelectorAll('.image-button').forEach(div=>div.onclick=null);
+  const listenButton = document.getElementById('listen-button');
+  if (listenButton) listenButton.disabled = true;
+
   const isCorrect = (selectedImage === correctImage);
   history.push({
     turn,
@@ -135,13 +143,25 @@ function confirmSelection(triggerNextByGesture=false){
   });
   if (isCorrect) score++;
   document.getElementById('score-info').innerText = `スコア：${score}/${config.rounds}`;
+
+  void window.segmentAudio.playReaction(isCorrect).catch(error => {
+    console.error('Reaction audio failed:', error);
+  });
+
   if (turn < config.rounds) {
-    nextTurn();
-    if (triggerNextByGesture) {
+    // 次の問題画面はすぐ表示し、リアクション音はそのまま2秒再生します。
+    nextTurn(true, true);
+
+    setTimeout(() => {
+      turnLocked = false;
+      const listenButton = document.getElementById('listen-button');
+      if (listenButton) listenButton.disabled = false;
       playAudioSegment(currentAudioId);
-    }
+    }, 2000);
   } else {
-    endGame();
+    setTimeout(() => {
+      endGame();
+    }, 2000);
   }
 }
 
