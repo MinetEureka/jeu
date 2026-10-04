@@ -6,8 +6,8 @@ window.gameConfig = Object.freeze({
   rounds: 10,
   leadMs: 2000,
   answerSeconds: 5,
-  segmentSpacing: 10,
-  segmentOffset: 1.5, // 最初の修正版と同じく、各区間の先頭から再生
+  segmentSpacing: 5,
+  segmentOffset: 1, // 最初の修正版と同じく、各区間の先頭から再生
   segmentSeconds: 5,
   mainAudio: 'audio.m4a', // M4Aを使う場合はここを変更
   reviewAudio: 'audioRe.m4a'
