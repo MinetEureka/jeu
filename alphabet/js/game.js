@@ -123,8 +123,13 @@ function selectImage(idx){
   if (i>=0) btns[i].classList.add('selected');
 }
 function confirmSelection(triggerNextByGesture=false){
-  if (phase!=='choosing' || turnLocked || !selectedImage) return; turnLocked=true; phase='submitting';
+  if (phase!=='choosing' || turnLocked || !selectedImage) return;
+  turnLocked=true;
+  phase='submitting';
   document.querySelectorAll('.image-button').forEach(div=>div.onclick=null);
+  const listenButton = document.getElementById('listen-button');
+  if (listenButton) listenButton.disabled = true;
+
   const isCorrect = (selectedImage === correctImage);
   history.push({
     turn,
@@ -136,14 +141,18 @@ function confirmSelection(triggerNextByGesture=false){
   });
   if (isCorrect) score++;
   document.getElementById('score-info').innerText = `スコア：${score}/${config.rounds}`;
-  if (turn < config.rounds) {
-    nextTurn();
-    if (triggerNextByGesture) {
-      playAudioSegment(currentAudioId);
+
+  void window.segmentAudio.playReaction(isCorrect).catch(error => {
+    console.error('Reaction audio failed:', error);
+  });
+
+  setTimeout(() => {
+    if (turn < config.rounds) {
+      nextTurn();
+    } else {
+      endGame();
     }
-  } else {
-    endGame();
-  }
+  }, 2000);
 }
 
 function endGame(){
